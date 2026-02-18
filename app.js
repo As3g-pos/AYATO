@@ -105,6 +105,7 @@ function listenForChanges() {
                         else if (page === 'employees') renderEmployees();
                         else if (page === 'discounts') renderDiscounts();
                         else if (page === 'returns') renderReturns();
+                        else if (page === 'barcode') renderBarcode();
                         else if (page === 'reports') renderReport();
                         else if (page === 'settings') renderSettings();
                     }
@@ -245,6 +246,7 @@ function initNav() {
             else if (page === 'employees') renderEmployees();
             else if (page === 'discounts') renderDiscounts();
             else if (page === 'returns') renderReturns();
+            else if (page === 'barcode') renderBarcode();
             else if (page === 'reports') {
                 const rDate = document.getElementById('reportDate');
                 if (rDate) rDate.value = new Date().toISOString().split('T')[0];

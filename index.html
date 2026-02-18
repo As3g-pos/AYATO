@@ -15,6 +15,7 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
 </head>
 
 <body>
@@ -99,6 +100,10 @@
                 <a href="#" class="nav-link" data-page="returns">
                     <i class="fas fa-rotate-left"></i>
                     <span>المرتجعات</span>
+                </a>
+                <a href="#" class="nav-link" data-page="barcode">
+                    <i class="fas fa-barcode"></i>
+                    <span>طابعة الباركود</span>
                 </a>
                 <a href="#" class="nav-link" data-page="reports">
                     <i class="fas fa-chart-line"></i>
@@ -491,6 +496,38 @@
                 </div>
             </section>
 
+            <!-- ============ BARCODE PAGE ============ -->
+            <section class="page" id="page-barcode">
+                <div class="barcode-container">
+                    <div class="barcode-controls">
+                        <div class="settings-card">
+                            <h3><i class="fas fa-search"></i> اختر المنتج للباركود</h3>
+                            <div class="search-box mb-15">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="barcodeProductSearch" placeholder="بحث باسم المنتج أو الكود..."
+                                    oninput="renderBarcodeList()">
+                            </div>
+                            <div class="barcode-product-list" id="barcodeProductList">
+                                <!-- Products will be listed here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="barcode-preview-section">
+                        <div class="settings-card">
+                            <h3><i class="fas fa-eye"></i> معاينة الباركود</h3>
+                            <div id="barcodePreviewArea" class="barcode-preview-area">
+                                <div class="empty-preview">إختر منتجاً للمعاينة</div>
+                            </div>
+                            <div class="barcode-actions mt-20 hidden" id="barcodeActions">
+                                <button class="btn-primary w-100" id="printBarcodeBtn">
+                                    <i class="fas fa-print"></i> طباعة الباركود
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- ============ REPORTS PAGE ============ -->
             <section class="page" id="page-reports">
                 <div class="reports-filters">
@@ -602,6 +639,26 @@
                                 <i class="fas fa-upload"></i> استيراد البيانات
                                 <input type="file" id="importDataInput" accept=".json" style="display:none;">
                             </label>
+                        </div>
+                    </div>
+                    <div class="settings-card">
+                        <h3><i class="fas fa-user-shield"></i> إدارة حساب المدير</h3>
+                        <div class="settings-form">
+                            <div class="form-group">
+                                <label>اسم مستخدم المدير الجديد</label>
+                                <input type="text" id="newAdminUsername" placeholder="اتركه فارغاً للحفاظ على الحالي">
+                            </div>
+                            <div class="form-group">
+                                <label>كلمة مرور المدير الجديدة</label>
+                                <input type="password" id="newAdminPassword" placeholder="كلمة المرور الجديدة">
+                            </div>
+                            <div class="form-group">
+                                <label>تأكيد كلمة المرور</label>
+                                <input type="password" id="confirmAdminPassword" placeholder="أعد كتابة كلمة المرور">
+                            </div>
+                            <button class="btn-primary" id="updateAdminBtn">
+                                <i class="fas fa-key"></i> تحديث بيانات المدير
+                            </button>
                         </div>
                     </div>
                     <div class="settings-card" style="grid-column: 1 / -1;">

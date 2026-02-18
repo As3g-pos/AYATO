@@ -130,7 +130,12 @@ function buildReceiptHTML(d, inv, cust) {
                     <th style="padding:4px; width: 25%;">${d.lblTotal}</th>
                 </tr>
             </thead>
-            <tbody>${items.map(it => `<tr style="border-bottom:1px solid #eee;"><td style="padding:4px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${it.name}</td><td style="padding:4px;">${it.price}</td><td style="padding:4px;">${it.qty}</td><td style="padding:4px;">${it.price * it.qty}</td></tr>`).join('')}</tbody>
+            <tbody>${items.map(it => `<tr style="border-bottom:1px solid #eee;">
+                <td style="padding:4px; text-align: right;">
+                    <div style="font-weight:700;">${it.name}</div>
+                    ${(it.size || it.color) ? `<div style="font-size:${d.bodySize - 2}pt; color:#444;">${it.size || ''} ${it.color ? '| ' + it.color : ''}</div>` : ''}
+                </td>
+                <td style="padding:4px;">${it.price}</td><td style="padding:4px;">${it.qty}</td><td style="padding:4px;">${it.price * it.qty}</td></tr>`).join('')}</tbody>
         </table>
         <div style="margin-bottom:8px;">
             <div style="display:flex; justify-content:space-between;"><span>\u0627\u0644\u0645\u062c\u0645\u0648\u0639:</span><span>${fmt(subtotal)}</span></div>
@@ -792,6 +797,91 @@ function initReports() {
     });
 }
 
+// ===== BARCODE MANAGEMENT =====
+function renderBarcode() {
+    renderBarcodeList();
+    document.getElementById('printBarcodeBtn')?.addEventListener('click', printBarcodeLabel);
+}
+
+function renderBarcodeList() {
+    const products = loadData('products') || [];
+    const search = document.getElementById('barcodeProductSearch')?.value.toLowerCase() || '';
+    const filtered = products.filter(p => p.name.toLowerCase().includes(search) || p.code.toLowerCase().includes(search));
+    const list = document.getElementById('barcodeProductList');
+    if (!list) return;
+
+    list.innerHTML = filtered.map(p => `
+        <div class="barcode-item" onclick="renderBarcodePreview(${p.id})">
+            <div>
+                <strong>${p.name}</strong>
+                <div class="small-text">${p.code}</div>
+            </div>
+            <i class="fas fa-chevron-left"></i>
+        </div>
+    `).join('') || '<div class="empty-list">لا توجد منتجات</div>';
+}
+
+let selectedBarcodeId = null;
+
+window.renderBarcodePreview = function (productId) {
+    const products = loadData('products') || [];
+    const p = products.find(prod => prod.id === productId);
+    if (!p) return;
+
+    selectedBarcodeId = productId;
+    const preview = document.getElementById('barcodePreviewArea');
+    preview.innerHTML = `
+        <div class="barcode-result">
+            <div class="barcode-label-preview">
+                <svg id="barcodeSvg"></svg>
+            </div>
+        </div>
+    `;
+
+    try {
+        JsBarcode("#barcodeSvg", p.code, {
+            format: "CODE128",
+            lineColor: "#000",
+            width: 2,
+            height: 60,
+            displayValue: true,
+            fontSize: 16,
+            font: "Cairo"
+        });
+        document.getElementById('barcodeActions').classList.remove('hidden');
+    } catch (e) {
+        preview.innerHTML = '<div class="error-text">فشل إنشاء الباركود. تأكد من صحة كود المنتج.</div>';
+    }
+}
+
+function printBarcodeLabel() {
+    const preview = document.querySelector('.barcode-label-preview');
+    if (!preview) return;
+
+    const win = window.open('', '_blank');
+    const svgHtml = document.getElementById('barcodeSvg').outerHTML;
+
+    win.document.write(`
+        <html>
+        <head>
+            <title>Barcode</title>
+            <style>
+                @page { margin: 0; size: 40mm 30mm; }
+                body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; height: 30mm; width: 40mm; overflow: hidden; }
+                .label { text-align: center; width: 100%; }
+                svg { width: 90%; height: auto; }
+            </style>
+        </head>
+        <body onload="window.print();setTimeout(()=>window.close(),500)">
+            <div class="label">
+                ${svgHtml}
+            </div>
+        </body>
+        </html>
+    `);
+    win.document.close();
+}
+
 // ===== SETTINGS =====
 function renderSettings() {
     const settings = loadData('settings'); const cats = loadData('categories');
@@ -828,6 +918,11 @@ function renderSettings() {
     updateReceiptPreview();
     const catList = document.getElementById('categoriesList');
     catList.innerHTML = cats.map((c, i) => `<div class="cat-item"><span>${c}</span><button onclick="deleteCategory(${i})"><i class="fas fa-times"></i></button></div>`).join('');
+
+    // Clear admin fields
+    document.getElementById('newAdminUsername').value = '';
+    document.getElementById('newAdminPassword').value = '';
+    document.getElementById('confirmAdminPassword').value = '';
 }
 function initSettings() {
     document.getElementById('saveStoreInfoBtn').addEventListener('click', () => {
@@ -871,6 +966,9 @@ function initSettings() {
         saveData('settings', s);
         toast('تم حفظ تصميم البون');
     });
+
+    document.getElementById('updateAdminBtn')?.addEventListener('click', updateAdminCredentials);
+
     document.getElementById('exportDataBtn').addEventListener('click', () => {
         const allData = {}; Object.keys(DEFAULT_DATA).forEach(k => { allData[k] = loadData(k); });
         const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
@@ -1007,3 +1105,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 250);
     });
 });
+
+function updateAdminCredentials() {
+    const newU = document.getElementById('newAdminUsername').value.trim();
+    const newP = document.getElementById('newAdminPassword').value.trim();
+    const confP = document.getElementById('confirmAdminPassword').value.trim();
+
+    if (!newU && !newP) {
+        toast('يرجى إدخال اسم مستخدم أو كلمة مرور للتغيير', 'warning');
+        return;
+    }
+
+    if (newP && newP !== confP) {
+        toast('كلمات المرور غير متطابقة', 'error');
+        return;
+    }
+
+    const users = loadData('users');
+    const adminIdx = users.findIndex(u => u.role === 'admin');
+    if (adminIdx === -1) {
+        toast('تعذر العثور على حساب المدير', 'error');
+        return;
+    }
+
+    if (newU) users[adminIdx].username = newU;
+    if (newP) users[adminIdx].password = newP;
+
+    saveData('users', users);
+
+    // Update current session if the admin is the currently logged in user
+    if (currentUser && currentUser.role === 'admin') {
+        currentUser = { ...users[adminIdx] };
+        localStorage.setItem('jaya_user', JSON.stringify(currentUser));
+        document.getElementById('currentUser').textContent = currentUser.name;
+    }
+
+    toast('تم تحديث بيانات المدير بنجاح');
+    document.getElementById('newAdminUsername').value = '';
+    document.getElementById('newAdminPassword').value = '';
+    document.getElementById('confirmAdminPassword').value = '';
+}
