@@ -32,6 +32,7 @@ const DEFAULT_DATA = {
     invoices: [],
     discounts: [],
     returns: [],
+    salesOrders: [],
     settings: { storeName: 'JAYA Luxury Boutique', storeAddress: 'برج المملكة - الدور الثاني', storePhone: '+966 50 000 0000', taxRate: 15, currency: 'ر.س', nextInvoiceNumber: 1 },
     notifications: []
 };
@@ -106,6 +107,7 @@ function listenForChanges() {
                         else if (page === 'discounts') renderDiscounts();
                         else if (page === 'returns') renderReturns();
                         else if (page === 'barcode') renderBarcode();
+                        else if (page === 'sales') renderSalesOrders();
                         else if (page === 'reports') renderReport();
                         else if (page === 'settings') renderSettings();
                     }
@@ -232,7 +234,7 @@ function initNav() {
                 dashboard: 'لوحة التحكم', products: 'المنتجات', pos: 'نقطة البيع',
                 invoices: 'الفواتير', customers: 'العملاء', inventory: 'المخزون',
                 employees: 'الموظفين', discounts: 'العروض والخصومات', returns: 'المرتجعات',
-                reports: 'التقارير', settings: 'الإعدادات'
+                sales: 'المبيعات', reports: 'التقارير', settings: 'الإعدادات'
             };
             document.getElementById('pageTitle').textContent = titles[page] || '';
 
@@ -247,6 +249,7 @@ function initNav() {
             else if (page === 'discounts') renderDiscounts();
             else if (page === 'returns') renderReturns();
             else if (page === 'barcode') renderBarcode();
+            else if (page === 'sales') renderSalesOrders();
             else if (page === 'reports') {
                 const rDate = document.getElementById('reportDate');
                 if (rDate) rDate.value = new Date().toISOString().split('T')[0];

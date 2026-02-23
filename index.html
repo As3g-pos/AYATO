@@ -105,6 +105,10 @@
                     <i class="fas fa-barcode"></i>
                     <span>طابعة الباركود</span>
                 </a>
+                <a href="#" class="nav-link" data-page="sales">
+                    <i class="fas fa-shopping-bag"></i>
+                    <span>المبيعات</span>
+                </a>
                 <a href="#" class="nav-link" data-page="reports">
                     <i class="fas fa-chart-line"></i>
                     <span>التقارير</span>
@@ -525,6 +529,39 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <!-- ============ SALES ORDERS PAGE ============ -->
+            <section class="page" id="page-sales">
+                <div class="page-header">
+                    <div class="page-header-actions">
+                        <button class="btn-primary" id="exportSalesExcelBtn">
+                            <i class="fas fa-file-excel"></i> تصدير إلى Excel
+                        </button>
+                    </div>
+                    <div class="filter-bar">
+                        <input type="text" id="salesOrderSearch" placeholder="بحث باسم العميلة أو رقم الهاتف..."
+                            class="filter-input">
+                        <input type="date" id="salesOrderDateFilter" class="filter-input">
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="data-table" id="salesOrdersTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>رقم الفاتورة</th>
+                                <th>اسم العميلة</th>
+                                <th>رقم الهاتف</th>
+                                <th>العنوان</th>
+                                <th>تفاصيل الأوردر</th>
+                                <th>الإجمالي</th>
+                                <th>تاريخ الشراء</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salesOrdersBody"></tbody>
+                    </table>
                 </div>
             </section>
 
@@ -1038,6 +1075,8 @@
                         <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox"
                                 class="empPagePerm" value="returns"> المرتجعات</label>
                         <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox"
+                                class="empPagePerm" value="sales"> المبيعات</label>
+                        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox"
                                 class="empPagePerm" value="reports"> التقارير</label>
                         <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox"
                                 class="empPagePerm" value="settings"> الإعدادات</label>
@@ -1276,6 +1315,8 @@
     <!-- Toast Notifications -->
     <div class="toast-container" id="toastContainer"></div>
 
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="app.js"></script>
     <script src="app2.js"></script>
     <script src="app3.js"></script>

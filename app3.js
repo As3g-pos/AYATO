@@ -180,13 +180,17 @@ function renderCustomers() {
     const search = (document.getElementById('customerSearch')?.value || '').toLowerCase();
     const tierF = document.getElementById('customerTierFilter')?.value || '';
     const filtered = customers.filter(c => (!search || c.name.includes(search) || c.phone.includes(search)) && (!tierF || c.tier === tierF));
-    document.getElementById('customersBody').innerHTML = filtered.map(c =>
-        `<tr><td><strong>${c.name}</strong></td><td>${c.phone}</td><td><span class="loyalty-badge ${getTierClass(c.tier)}"><i class="fas fa-star"></i> ${c.tier}</span></td>
+    document.getElementById('customersBody').innerHTML = filtered.map(c => {
+        const waText = encodeURIComponent(`الاسم: ${c.name}\nالعنوان/المحافظة: ${c.address || 'غير مسجل'}`);
+        return `<tr><td><strong>${c.name}</strong></td><td><a href="https://wa.me/2${c.phone.replace(/^0/, '0')}?text=${waText}" target="_blank" style="color:var(--text-primary); text-decoration:none;">${c.phone}</a></td><td><span class="loyalty-badge ${getTierClass(c.tier)}"><i class="fas fa-star"></i> ${c.tier}</span></td>
         <td>${c.points}</td><td>${fmt(c.totalPurchases)}</td>
-        <td class="actions"><button class="btn-edit" onclick="editCustomer(${c.id})" title="تعديل"><i class="fas fa-edit"></i></button>
-        <button class="btn-delete" onclick="deleteCustomer(${c.id})" title="حذف"><i class="fas fa-trash"></i></button></td></tr>`
-    ).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px">لا يوجد عملاء</td></tr>';
+        <td class="actions">
+        <a href="https://wa.me/2${c.phone.replace(/^0/, '0')}?text=${waText}" target="_blank" class="btn-edit" title="واتساب" style="color:#25d366;"><i class="fab fa-whatsapp"></i></a>
+        <button class="btn-edit" onclick="editCustomer(${c.id})" title="تعديل"><i class="fas fa-edit"></i></button>
+        <button class="btn-delete" onclick="deleteCustomer(${c.id})" title="حذف"><i class="fas fa-trash"></i></button></td></tr>`;
+    }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px">لا يوجد عملاء</td></tr>';
 }
+
 function initCustomers() {
     document.getElementById('addCustomerBtn').addEventListener('click', () => {
         document.getElementById('customerModalTitle').textContent = 'إضافة عميل'; document.getElementById('customerForm').reset(); document.getElementById('custId').value = '';
@@ -1029,6 +1033,249 @@ window.deleteCategory = function (idx) {
     const cats = loadData('categories'); cats.splice(idx, 1); saveData('categories', cats); renderSettings();
 };
 
+// ===== SALES ORDERS (Auto-pulled from Invoices) =====
+function renderSalesOrders() {
+    const invoices = loadData('invoices') || [];
+    const customers = loadData('customers') || [];
+    const searchVal = (document.getElementById('salesOrderSearch')?.value || '').trim().toLowerCase();
+    const dateVal = document.getElementById('salesOrderDateFilter')?.value || '';
+
+    // Build sales data from invoices
+    let salesData = invoices.map(inv => {
+        const cust = inv.customerId ? customers.find(c => c.id === inv.customerId) : null;
+        const customerName = cust ? cust.name : (inv.walkInName || 'عميل عابر');
+        const customerPhone = cust ? cust.phone : (inv.walkInPhone || '-');
+        const customerAddress = cust ? (cust.address || '-') : (inv.walkInAddress || '-');
+        const orderDetails = (inv.items || []).map(it => {
+            let detail = it.name;
+            if (it.size) detail += ' مقاس ' + it.size;
+            if (it.color) detail += ' لون ' + it.color;
+            if (it.qty > 1) detail += ' × ' + it.qty;
+            return detail;
+        }).join(' ، ');
+        return {
+            invoiceId: inv.id,
+            customerName,
+            customerPhone,
+            customerAddress,
+            orderDetails,
+            total: inv.total || 0,
+            date: inv.date || '',
+            dateObj: new Date(inv.date)
+        };
+    });
+
+    // Apply search filter
+    if (searchVal) {
+        salesData = salesData.filter(o =>
+            o.customerName.toLowerCase().includes(searchVal) ||
+            o.customerPhone.includes(searchVal) ||
+            o.invoiceId.toString().includes(searchVal)
+        );
+    }
+
+    // Apply date filter
+    if (dateVal) {
+        salesData = salesData.filter(o => o.date.startsWith(dateVal));
+    }
+
+    // Sort by date, newest first
+    salesData.sort((a, b) => b.dateObj - a.dateObj);
+
+    document.getElementById('salesOrdersBody').innerHTML = salesData.map((o, idx) => {
+        const dateStr = o.date ? new Date(o.date).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+        return `<tr>
+            <td>${idx + 1}</td>
+            <td><span class="badge" style="background:var(--gold-2);color:#000">${o.invoiceId}</span></td>
+            <td><strong>${o.customerName}</strong></td>
+            <td>${o.customerPhone}</td>
+            <td>${o.customerAddress}</td>
+            <td style="white-space:pre-wrap;max-width:300px;">${o.orderDetails}</td>
+            <td><strong>${fmt(o.total)}</strong></td>
+            <td style="white-space:nowrap;">${dateStr}</td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px">لا توجد فواتير مسجلة بعد</td></tr>';
+}
+
+function initSalesOrders() {
+    // Search and filter
+    document.getElementById('salesOrderSearch')?.addEventListener('input', renderSalesOrders);
+    document.getElementById('salesOrderDateFilter')?.addEventListener('change', renderSalesOrders);
+
+    // Export to Excel
+    document.getElementById('exportSalesExcelBtn')?.addEventListener('click', exportSalesOrdersToExcel);
+}
+
+function exportSalesOrdersToExcel() {
+    const invoices = loadData('invoices') || [];
+    const customers = loadData('customers') || [];
+    const products = loadData('products') || [];
+    const settings = loadData('settings');
+    const currency = settings?.currency || 'ج.م';
+    const storeName = settings?.storeName || 'JAYA';
+    if (!invoices.length) { toast('لا توجد فواتير للتصدير', 'warning'); return; }
+
+    // Build data from invoices
+    const salesData = invoices.map(inv => {
+        const cust = inv.customerId ? customers.find(c => c.id === inv.customerId) : null;
+        return {
+            customerName: cust ? cust.name : (inv.walkInName || 'عميل عابر'),
+            customerPhone: cust ? (cust.phone || '-') : (inv.walkInPhone || '-'),
+            customerAddress: cust ? (cust.address || '-') : (inv.walkInAddress || '-'),
+            items: (inv.items || []).map(it => {
+                const prod = products.find(p => p.id == it.productId);
+                return {
+                    code: prod ? prod.code : '-',
+                    name: it.name || '-',
+                    size: it.size || '-',
+                    color: it.color || '-',
+                    qty: it.qty || 1,
+                    price: it.price || 0
+                };
+            }),
+            total: inv.total || 0,
+            date: inv.date || '',
+            invoiceId: inv.id
+        };
+    });
+
+    // Group by customer name
+    const grouped = {};
+    salesData.forEach(o => {
+        const name = o.customerName.trim();
+        if (!grouped[name]) grouped[name] = [];
+        grouped[name].push(o);
+    });
+    Object.values(grouped).forEach(arr => arr.sort((a, b) => new Date(a.date) - new Date(b.date)));
+
+    const customerNames = Object.keys(grouped).sort();
+    const today = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+    let grandTotal = 0;
+    salesData.forEach(o => grandTotal += o.total);
+
+    // Shared styles
+    const S = {
+        hdr: 'background:#2c2c3e; color:#d4af37; font-weight:bold; padding:10px; border:2px solid #d4af37;',
+        colHdr: 'background:#b8860b; color:#fff; font-weight:bold; padding:8px 6px; border:1px solid #996515; text-align:center;',
+        subHdr: 'background:#f5f0e1; color:#5a4a1e; font-weight:bold; padding:6px; border:1px solid #d4c08a; text-align:center;',
+        cell: 'padding:6px 8px; border:1px solid #d5d5d5; vertical-align:top;',
+        custBar: 'background:#3a3a52; color:#f0e4b8; font-weight:bold; padding:8px 12px; border:1px solid #555;',
+        subtotal: 'background:#f9f3e3; font-weight:bold; padding:6px 10px; border:1px solid #d4c08a;',
+        grand: 'background:#2c2c3e; color:#fff; font-weight:bold; padding:10px; border:2px solid #d4af37;'
+    };
+
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="UTF-8">
+    <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+    <x:Name>تقرير المبيعات</x:Name>
+    <x:WorksheetOptions><x:DisplayRightToLeft/></x:WorksheetOptions>
+    </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+    <style>td,th{mso-number-format:\\@;font-family:Calibri,Arial;}</style>
+    </head><body>
+    <table dir="rtl" style="border-collapse:collapse;width:100%;">
+
+    <!-- ===== REPORT HEADER ===== -->
+    <tr><td colspan="9" style="${S.hdr} font-size:18pt; text-align:center;">
+        ${storeName} — تقرير المبيعات
+    </td></tr>
+    <tr>
+        <td colspan="3" style="${S.hdr} font-size:11pt; text-align:center;">تاريخ التقرير: ${today}</td>
+        <td colspan="3" style="${S.hdr} font-size:11pt; text-align:center;">عدد الفواتير: ${invoices.length}  |  عدد العملاء: ${customerNames.length}</td>
+        <td colspan="3" style="${S.hdr} font-size:13pt; text-align:center;">الإجمالي: ${Number(grandTotal).toLocaleString('ar-EG')} ${currency}</td>
+    </tr>
+    <tr><td colspan="9" style="height:6px;border:none;"></td></tr>
+
+    <!-- ===== COLUMN HEADERS ===== -->
+    <tr>
+        <th style="${S.colHdr} font-size:12pt; width:40px;">م</th>
+        <th style="${S.colHdr} font-size:12pt;">رقم الفاتورة</th>
+        <th style="${S.colHdr} font-size:12pt;">التاريخ</th>
+        <th style="${S.colHdr} font-size:12pt;">كود المنتج</th>
+        <th style="${S.colHdr} font-size:12pt;">اسم المنتج</th>
+        <th style="${S.colHdr} font-size:12pt;">المقاس</th>
+        <th style="${S.colHdr} font-size:12pt;">اللون</th>
+        <th style="${S.colHdr} font-size:12pt;">الكمية</th>
+        <th style="${S.colHdr} font-size:12pt;">سعر المنتج</th>
+    </tr>`;
+
+    let rowNum = 0;
+    customerNames.forEach((name, ci) => {
+        const orders = grouped[name];
+        const custTotal = orders.reduce((s, o) => s + o.total, 0);
+        const totalOrders = orders.length;
+
+        // ── Customer Header Bar ──
+        html += `<tr>
+            <td colspan="3" style="${S.custBar} font-size:12pt; text-align:right;">${name}</td>
+            <td colspan="2" style="${S.custBar} font-size:11pt; text-align:center;">هاتف: ${orders[0].customerPhone}</td>
+            <td colspan="2" style="${S.custBar} font-size:11pt; text-align:center;">العنوان: ${orders[0].customerAddress}</td>
+            <td colspan="2" style="${S.custBar} font-size:11pt; text-align:center;">طلبات: ${totalOrders}</td>
+        </tr>`;
+
+        orders.forEach((o, oi) => {
+            const dateStr = o.date ? new Date(o.date).toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-';
+            const items = o.items;
+            const rowBg = oi % 2 === 0 ? '#fafaf5' : '#ffffff';
+
+            // ── Item rows ──
+            items.forEach((it, ii) => {
+                rowNum++;
+                html += `<tr>
+                    <td style="${S.cell} background:${rowBg}; text-align:center; font-size:11pt; color:#888;">${ii === 0 ? rowNum : ''}</td>
+                    <td style="${S.cell} background:${rowBg}; text-align:center; font-size:11pt; color:#b8860b; font-weight:bold;">${ii === 0 ? o.invoiceId : ''}</td>
+                    <td style="${S.cell} background:${rowBg}; text-align:center; font-size:11pt; color:#555;">${ii === 0 ? dateStr : ''}</td>
+                    <td style="${S.cell} background:${rowBg}; text-align:center; font-size:11pt; color:#2e7d32; font-weight:bold; font-family:Consolas,monospace;">${it.code}</td>
+                    <td style="${S.cell} background:${rowBg}; text-align:right; font-size:11pt; color:#222;">${it.name}</td>
+                    <td style="${S.cell} background:${rowBg}; text-align:center; font-size:11pt; color:#555;">${it.size}</td>
+                    <td style="${S.cell} background:${rowBg}; text-align:center; font-size:11pt; color:#555;">${it.color}</td>
+                    <td style="${S.cell} background:${rowBg}; text-align:center; font-size:11pt; color:#333; font-weight:bold;">${it.qty}</td>
+                    <td style="${S.cell} background:${rowBg}; text-align:center; font-size:11pt; color:#1a7a3a; font-weight:bold;">${Number(it.price * it.qty).toLocaleString('ar-EG')} ${currency}</td>
+                </tr>`;
+            });
+
+            // ── Invoice Total row ──
+            html += `<tr>
+                <td colspan="8" style="background:#f0ece0; padding:5px 10px; border:1px solid #d4c08a; text-align:left; font-size:11pt; font-weight:bold; color:#6b5a1e;">إجمالي الفاتورة ${o.invoiceId}:</td>
+                <td style="background:#f0ece0; padding:5px 8px; border:2px solid #b8860b; text-align:center; font-size:12pt; font-weight:bold; color:#b8860b;">${Number(o.total).toLocaleString('ar-EG')} ${currency}</td>
+            </tr>`;
+        });
+
+        // ── Customer Subtotal ──
+        html += `<tr>
+            <td colspan="8" style="${S.subtotal} text-align:left; font-size:12pt; color:#5a4a1e;">إجمالي ${name} (${totalOrders} طلبات):</td>
+            <td style="${S.subtotal} text-align:center; font-size:14pt; color:#b8860b; border:2px solid #b8860b;">${Number(custTotal).toLocaleString('ar-EG')} ${currency}</td>
+        </tr>`;
+
+        if (ci < customerNames.length - 1) {
+            html += `<tr><td colspan="9" style="height:4px;border:none;background:#e8e8e8;"></td></tr>`;
+        }
+    });
+
+    // ── Grand Total ──
+    html += `
+    <tr><td colspan="9" style="height:4px;border:none;"></td></tr>
+    <tr>
+        <td colspan="8" style="${S.grand} text-align:left; font-size:14pt;">الإجمالي الكلي</td>
+        <td style="${S.grand} text-align:center; font-size:16pt; color:#d4af37;">${Number(grandTotal).toLocaleString('ar-EG')} ${currency}</td>
+    </tr>
+    <tr><td colspan="9" style="background:#f8f8f8;color:#aaa;font-size:9pt;text-align:center;padding:6px;border:1px solid #eee;">
+        ${storeName} — تقرير مبيعات تلقائي — ${today}
+    </td></tr>
+    </table></body></html>`;
+
+    const defaultName = `${storeName}-Sales-${new Date().toISOString().split('T')[0]}`;
+    const fileName = prompt('اسم الملف:', defaultName);
+    if (!fileName) return; // User cancelled
+
+    const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName.endsWith('.xls') ? fileName : fileName + '.xls';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('تم تصدير تقرير المبيعات بنجاح');
+}
+
 // ===== GLOBAL SEARCH =====
 function initGlobalSearch() {
     document.getElementById('globalSearch').addEventListener('input', e => {
@@ -1048,7 +1295,7 @@ function initApp() {
 document.addEventListener('DOMContentLoaded', async () => {
     initParticles(); initLogin(); initNav(); initTheme(); initModals(); initNotifPanel();
     initProducts(); initPOS(); initInvoices(); initCustomers(); initInventory(); initEmployees();
-    initDiscounts(); initReturns(); initReports(); initSettings(); initGlobalSearch();
+    initDiscounts(); initReturns(); initReports(); initSalesOrders(); initSettings(); initGlobalSearch();
 
     // Show loading indicator on login button
     const loginBtn = document.getElementById('loginBtn');
