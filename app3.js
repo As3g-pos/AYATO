@@ -834,10 +834,19 @@ window.renderBarcodePreview = function (productId) {
 
     selectedBarcodeId = productId;
     const preview = document.getElementById('barcodePreviewArea');
+
+    const brandName = document.getElementById('barcodeBrandName')?.value || 'JAYA';
+    const settings = loadData('settings');
+    const currency = settings?.currency || 'ج.م';
+    const numPrice = Number(p.salePrice).toLocaleString('ar-EG');
+    const priceText = `${numPrice} ${currency}`;
+
     preview.innerHTML = `
-        <div class="barcode-result">
-            <div class="barcode-label-preview">
-                <svg id="barcodeSvg"></svg>
+        <div class="barcode-result" style="text-align: center; background: #fff; padding: 15px; border: 1px dashed #ccc; border-radius: 8px; display: inline-block; color: #000;">
+            <div class="barcode-label-print-content" style="text-align: center; font-family: 'Cairo', sans-serif; line-height: 1;">
+                <div style="font-weight: bold; font-size: 14px; margin-bottom: 2px;">${brandName}</div>
+                <svg id="barcodeSvg" style="margin: 0; padding: 0;"></svg>
+                <div style="font-weight: bold; font-size: 14px; margin-top: 2px;">${priceText}</div>
             </div>
         </div>
     `;
@@ -847,10 +856,11 @@ window.renderBarcodePreview = function (productId) {
             format: "CODE128",
             lineColor: "#000",
             width: 2,
-            height: 60,
+            height: 40,
             displayValue: true,
-            fontSize: 16,
-            font: "Cairo"
+            fontSize: 14,
+            font: "Cairo",
+            margin: 0
         });
         document.getElementById('barcodeActions').classList.remove('hidden');
     } catch (e) {
@@ -859,11 +869,11 @@ window.renderBarcodePreview = function (productId) {
 }
 
 function printBarcodeLabel() {
-    const preview = document.querySelector('.barcode-label-preview');
+    const preview = document.querySelector('.barcode-label-print-content');
     if (!preview) return;
 
     const win = window.open('', '_blank');
-    const svgHtml = document.getElementById('barcodeSvg').outerHTML;
+    const htmlContent = preview.innerHTML;
 
     win.document.write(`
         <html>
@@ -871,14 +881,15 @@ function printBarcodeLabel() {
             <title>Barcode</title>
             <style>
                 @page { margin: 0; size: 40mm 30mm; }
-                body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; height: 30mm; width: 40mm; overflow: hidden; }
-                .label { text-align: center; width: 100%; }
-                svg { width: 90%; height: auto; }
+                body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; height: 30mm; width: 40mm; overflow: hidden; background: #fff; color: #000; }
+                .label { text-align: center; width: 100%; font-family: 'Cairo', sans-serif; line-height: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+                .label div { font-weight: bold; font-size: 12px; }
+                svg { width: 95%; height: auto; max-height: 16mm; margin: 2px 0; }
             </style>
         </head>
         <body onload="window.print();setTimeout(()=>window.close(),500)">
             <div class="label">
-                ${svgHtml}
+                ${htmlContent}
             </div>
         </body>
         </html>

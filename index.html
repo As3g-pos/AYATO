@@ -518,7 +518,13 @@
                     </div>
                     <div class="barcode-preview-section">
                         <div class="settings-card">
-                            <h3><i class="fas fa-eye"></i> معاينة الباركود</h3>
+                            <h3><i class="fas fa-eye"></i> إعدادات ومعاينة الباركود</h3>
+                            <div class="form-group mb-15">
+                                <label>اسم البراند</label>
+                                <input type="text" id="barcodeBrandName" value="JAYA"
+                                    oninput="if(selectedBarcodeId) renderBarcodePreview(selectedBarcodeId)"
+                                    placeholder="اسم البراند (يظهر أعلى الباركود)">
+                            </div>
                             <div id="barcodePreviewArea" class="barcode-preview-area">
                                 <div class="empty-preview">إختر منتجاً للمعاينة</div>
                             </div>
