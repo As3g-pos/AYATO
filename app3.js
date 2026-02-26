@@ -838,7 +838,7 @@ window.renderBarcodePreview = function (productId) {
     const brandName = document.getElementById('barcodeBrandName')?.value || 'JAYA';
     const settings = loadData('settings');
     const currency = settings?.currency || 'ج.م';
-    const numPrice = Number(p.salePrice).toLocaleString('ar-EG');
+    const numPrice = Number(p.salePrice).toLocaleString('en-US', { useGrouping: false });
     const priceText = `${numPrice} ${currency}`;
 
     preview.innerHTML = `
@@ -1094,7 +1094,7 @@ function renderSalesOrders() {
     salesData.sort((a, b) => b.dateObj - a.dateObj);
 
     document.getElementById('salesOrdersBody').innerHTML = salesData.map((o, idx) => {
-        const dateStr = o.date ? new Date(o.date).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+        const dateStr = o.date ? new Date(o.date).toLocaleDateString('ar-u-nu-latn', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
         return `<tr>
             <td>${idx + 1}</td>
             <td><span class="badge" style="background:var(--gold-2);color:#000">${o.invoiceId}</span></td>
@@ -1160,7 +1160,7 @@ function exportSalesOrdersToExcel() {
     Object.values(grouped).forEach(arr => arr.sort((a, b) => new Date(a.date) - new Date(b.date)));
 
     const customerNames = Object.keys(grouped).sort();
-    const today = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+    const today = new Date().toLocaleDateString('ar-u-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' });
     let grandTotal = 0;
     salesData.forEach(o => grandTotal += o.total);
 
@@ -1192,7 +1192,7 @@ function exportSalesOrdersToExcel() {
     <tr>
         <td colspan="3" style="${S.hdr} font-size:11pt; text-align:center;">تاريخ التقرير: ${today}</td>
         <td colspan="3" style="${S.hdr} font-size:11pt; text-align:center;">عدد الفواتير: ${invoices.length}  |  عدد العملاء: ${customerNames.length}</td>
-        <td colspan="3" style="${S.hdr} font-size:13pt; text-align:center;">الإجمالي: ${Number(grandTotal).toLocaleString('ar-EG')} ${currency}</td>
+        <td colspan="3" style="${S.hdr} font-size:13pt; text-align:center;">الإجمالي: ${Number(grandTotal).toLocaleString('en-US', { useGrouping: false })} ${currency}</td>
     </tr>
     <tr><td colspan="9" style="height:6px;border:none;"></td></tr>
 
@@ -1224,7 +1224,7 @@ function exportSalesOrdersToExcel() {
         </tr>`;
 
         orders.forEach((o, oi) => {
-            const dateStr = o.date ? new Date(o.date).toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-';
+            const dateStr = o.date ? new Date(o.date).toLocaleDateString('ar-u-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-';
             const items = o.items;
             const rowBg = oi % 2 === 0 ? '#fafaf5' : '#ffffff';
 
@@ -1240,21 +1240,21 @@ function exportSalesOrdersToExcel() {
                     <td style="${S.cell} background:${rowBg}; text-align:center; font-size:11pt; color:#555;">${it.size}</td>
                     <td style="${S.cell} background:${rowBg}; text-align:center; font-size:11pt; color:#555;">${it.color}</td>
                     <td style="${S.cell} background:${rowBg}; text-align:center; font-size:11pt; color:#333; font-weight:bold;">${it.qty}</td>
-                    <td style="${S.cell} background:${rowBg}; text-align:center; font-size:11pt; color:#1a7a3a; font-weight:bold;">${Number(it.price * it.qty).toLocaleString('ar-EG')} ${currency}</td>
+                    <td style="${S.cell} background:${rowBg}; text-align:center; font-size:11pt; color:#1a7a3a; font-weight:bold;">${Number(it.price * it.qty).toLocaleString('en-US', { useGrouping: false })} ${currency}</td>
                 </tr>`;
             });
 
             // ── Invoice Total row ──
             html += `<tr>
                 <td colspan="8" style="background:#f0ece0; padding:5px 10px; border:1px solid #d4c08a; text-align:left; font-size:11pt; font-weight:bold; color:#6b5a1e;">إجمالي الفاتورة ${o.invoiceId}:</td>
-                <td style="background:#f0ece0; padding:5px 8px; border:2px solid #b8860b; text-align:center; font-size:12pt; font-weight:bold; color:#b8860b;">${Number(o.total).toLocaleString('ar-EG')} ${currency}</td>
+                <td style="background:#f0ece0; padding:5px 8px; border:2px solid #b8860b; text-align:center; font-size:12pt; font-weight:bold; color:#b8860b;">${Number(o.total).toLocaleString('en-US', { useGrouping: false })} ${currency}</td>
             </tr>`;
         });
 
         // ── Customer Subtotal ──
         html += `<tr>
             <td colspan="8" style="${S.subtotal} text-align:left; font-size:12pt; color:#5a4a1e;">إجمالي ${name} (${totalOrders} طلبات):</td>
-            <td style="${S.subtotal} text-align:center; font-size:14pt; color:#b8860b; border:2px solid #b8860b;">${Number(custTotal).toLocaleString('ar-EG')} ${currency}</td>
+            <td style="${S.subtotal} text-align:center; font-size:14pt; color:#b8860b; border:2px solid #b8860b;">${Number(custTotal).toLocaleString('en-US', { useGrouping: false })} ${currency}</td>
         </tr>`;
 
         if (ci < customerNames.length - 1) {
@@ -1267,7 +1267,7 @@ function exportSalesOrdersToExcel() {
     <tr><td colspan="9" style="height:4px;border:none;"></td></tr>
     <tr>
         <td colspan="8" style="${S.grand} text-align:left; font-size:14pt;">الإجمالي الكلي</td>
-        <td style="${S.grand} text-align:center; font-size:16pt; color:#d4af37;">${Number(grandTotal).toLocaleString('ar-EG')} ${currency}</td>
+        <td style="${S.grand} text-align:center; font-size:16pt; color:#d4af37;">${Number(grandTotal).toLocaleString('en-US', { useGrouping: false })} ${currency}</td>
     </tr>
     <tr><td colspan="9" style="background:#f8f8f8;color:#aaa;font-size:9pt;text-align:center;padding:6px;border:1px solid #eee;">
         ${storeName} — تقرير مبيعات تلقائي — ${today}

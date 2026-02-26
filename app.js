@@ -124,8 +124,8 @@ function genInvId() {
 }
 
 // ===== UTILITY =====
-function fmt(n) { const s = loadData('settings'); return Number(n).toLocaleString('ar-EG') + ' ' + (s?.currency || 'ج.م'); }
-function fmtDate(d) { return new Date(d).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }); }
+function fmt(n) { const s = loadData('settings'); return Number(n).toLocaleString('en-US', { useGrouping: false, minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' ' + (s?.currency || 'ج.م'); }
+function fmtDate(d) { return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }); }
 function toast(msg, type = 'success') {
     const c = document.getElementById('toastContainer');
     const t = document.createElement('div');

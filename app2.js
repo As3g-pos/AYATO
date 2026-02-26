@@ -80,7 +80,7 @@ function drawSalesChart() {
         ctx.font = '11px Cairo';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
-        ctx.fillText(Number(val).toLocaleString(), padding.left - 10, y);
+        ctx.fillText(Number(val).toLocaleString('en-US', { useGrouping: false }), padding.left - 10, y);
     }
     ctx.stroke();
 
@@ -131,14 +131,14 @@ function drawSalesChart() {
         ctx.font = '11px Cairo';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        const dayName = new Date(days[i]).toLocaleDateString('ar-EG', { weekday: 'long' });
+        const dayName = new Date(days[i]).toLocaleDateString('ar-u-nu-latn', { weekday: 'long' });
         ctx.fillText(dayName, barX + barW / 2, barY + 12);
 
         // Value on Top
         if (v > 0) {
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 12px Cairo';
-            ctx.fillText(Number(v).toLocaleString(), barX + barW / 2, barY - Math.max(barH, 12) - 20);
+            ctx.fillText(Number(v).toLocaleString('en-US', { useGrouping: false }), barX + barW / 2, barY - Math.max(barH, 12) - 20);
         }
     });
 }
