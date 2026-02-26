@@ -878,7 +878,7 @@ function printBarcodeLabel() {
     win.document.write(`
         <html>
         <head>
-            <title>Barcode</title>
+            <title></title>
             <style>
                 @page { margin: 0; size: 40mm 30mm; }
                 body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; height: 30mm; width: 40mm; overflow: hidden; background: #fff; color: #000; }
@@ -1300,7 +1300,112 @@ function initGlobalSearch() {
 // ===== INIT APP =====
 function initApp() {
     renderDashboard(); renderNotifications(); checkLowStock(); applyPagePermissions();
+    initProductExportImport();
 }
+
+// ===== PRODUCT EXPORT/IMPORT =====
+function initProductExportImport() {
+    document.getElementById('exportProductsBtn')?.addEventListener('click', exportProductsToExcel);
+    document.getElementById('importProductsInput')?.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) importProductsFromExcel(file);
+    });
+}
+
+function exportProductsToExcel() {
+    const products = loadData('products');
+    if (!products || products.length === 0) {
+        toast('لا توجد منتجات لتصديرها', 'warning');
+        return;
+    }
+
+    const data = products.map(p => ({
+        'اسم المنتج': p.name || '',
+        'الكود': p.code || '',
+        'الفئة': p.category || '',
+        'سعر التكلفة': p.purchasePrice || p.costPrice || 0,
+        'سعر البيع': p.salePrice || 0,
+        'الكمية': p.quantity || 0,
+        'الألوان': p.colors || '',
+        'المقاسات': (p.sizes || []).join(', '),
+        'الوصف': p.description || ''
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "المنتجات");
+    XLSX.writeFile(wb, `منتجات-جايا-${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast('تم تصدير المنتجات بنجاح');
+}
+
+function importProductsFromExcel(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet);
+
+            if (json.length === 0) {
+                toast('الملف فارغ', 'warning');
+                return;
+            }
+
+            const products = loadData('products');
+            const categories = loadData('categories');
+            let updatedCount = 0;
+            let addedCount = 0;
+
+            json.forEach(row => {
+                const code = String(row['الكود'] || '').trim();
+                const name = String(row['اسم المنتج'] || '').trim();
+                if (!name || !code) return;
+
+                const category = String(row['الفئة'] || '').trim();
+                if (category && !categories.includes(category)) {
+                    categories.push(category);
+                }
+
+                const productData = {
+                    name,
+                    code,
+                    category,
+                    costPrice: +(row['سعر التكلفة'] || 0),
+                    purchasePrice: +(row['سعر التكلفة'] || 0),
+                    salePrice: +(row['سعر البيع'] || 0),
+                    quantity: +(row['الكمية'] || 0),
+                    colors: String(row['الألوان'] || '').trim(),
+                    sizes: String(row['المقاسات'] || '').split(',').map(s => s.trim()).filter(s => s),
+                    description: String(row['الوصف'] || '').trim()
+                };
+
+                const existingIdx = products.findIndex(p => p.code === code);
+                if (existingIdx > -1) {
+                    products[existingIdx] = { ...products[existingIdx], ...productData };
+                    updatedCount++;
+                } else {
+                    productData.id = genId(products);
+                    products.push(productData);
+                    addedCount++;
+                }
+            });
+
+            saveData('products', products);
+            saveData('categories', categories);
+            renderProducts();
+            if (typeof updateCategorySelects === 'function') updateCategorySelects();
+            toast(`تم بنجاح: إضافة ${addedCount} وتحديث ${updatedCount} منتج`);
+            document.getElementById('importProductsInput').value = ''; // Reset input
+        } catch (err) {
+            console.error('Import error:', err);
+            toast('خطأ في قراءة ملف Excel', 'error');
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
 
 // ===== DOM READY - FIREBASE ASYNC INIT =====
 document.addEventListener('DOMContentLoaded', async () => {
