@@ -136,6 +136,7 @@ function toast(msg, type = 'success') {
 }
 function getTierClass(t) { return t === 'VIP' ? 'loyalty-vip' : t === 'ذهبي' ? 'loyalty-gold' : t === 'فضي' ? 'loyalty-silver' : 'loyalty-bronze'; }
 function updateTier(c) { c.tier = c.totalPurchases >= 10000 ? 'VIP' : c.totalPurchases >= 5000 ? 'ذهبي' : c.totalPurchases >= 2000 ? 'فضي' : 'برونز'; return c; }
+function sanitizeKey(key) { return key ? String(key).replace(/[.#$\[\]/]/g, '_') : ''; }
 
 // ===== APP STATE =====
 let currentUser = null, cart = [], selectedPayment = 'cash', appliedDiscount = null;

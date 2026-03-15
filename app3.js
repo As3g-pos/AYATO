@@ -236,7 +236,7 @@ function renderInventory() {
 
     document.getElementById('inventoryBody').innerHTML = filtered.map(p => {
         const qty = p.quantity || 0;
-        const purchasePrice = p.purchasePrice || 0;
+        const purchasePrice = p.costPrice || p.purchasePrice || 0;
         const salePrice = p.salePrice || 0;
         const totalVal = qty * salePrice;
 
@@ -322,7 +322,7 @@ window.viewProductStockDetail = function (productId) {
             </div>
             <div style="background:var(--bg-secondary); padding:10px; border-radius:8px; border:1px solid var(--border);">
                 <small style="color:var(--text-muted)">سعر التكلفة</small>
-                <div style="font-weight:700">${fmt(p.purchasePrice || 0)}</div>
+                <div style="font-weight:700">${fmt(p.costPrice || p.purchasePrice || 0)}</div>
             </div>
             <div style="background:var(--bg-secondary); padding:10px; border-radius:8px; border:1px solid var(--border);">
                 <small style="color:var(--text-muted)">سعر البيع</small>

@@ -381,8 +381,8 @@ function initProducts() {
 
         const variantStock = {};
         document.querySelectorAll('.variant-stock-input').forEach(input => {
-            const c = input.dataset.color;
-            const s = input.dataset.size;
+            const c = sanitizeKey(input.dataset.color);
+            const s = sanitizeKey(input.dataset.size);
             if (!variantStock[c]) variantStock[c] = {};
             variantStock[c][s] = +input.value;
         });
@@ -441,8 +441,8 @@ window.editProduct = function (id) {
     // Fill values from variantStock
     if (p.variantStock) {
         document.querySelectorAll('.variant-stock-input').forEach(input => {
-            const c = input.dataset.color;
-            const s = input.dataset.size;
+            const c = sanitizeKey(input.dataset.color);
+            const s = sanitizeKey(input.dataset.size);
             if (p.variantStock[c] && p.variantStock[c][s] !== undefined) {
                 input.value = p.variantStock[c][s];
             }
@@ -450,7 +450,7 @@ window.editProduct = function (id) {
     } else if (p.sizeStock) {
         // Migration: pull from old sizeStock if it exists
         document.querySelectorAll('.variant-stock-input').forEach(input => {
-            const s = input.dataset.size;
+            const s = sanitizeKey(input.dataset.size);
             if (p.sizeStock[s] !== undefined) {
                 input.value = p.sizeStock[s];
             }
@@ -563,12 +563,15 @@ document.getElementById('confirmPosAdd').addEventListener('click', () => {
     const size = document.querySelector('#selProdSizes .sel-btn.active').textContent;
     const color = document.querySelector('#selProdColors .sel-btn.active').textContent;
 
+    const sc = sanitizeKey(color);
+    const ss = sanitizeKey(size);
+
     // Calculate max available for this specific size and color
     let maxQty = p.quantity;
-    if (p.variantStock && p.variantStock[color] && p.variantStock[color][size] !== undefined) {
-        maxQty = p.variantStock[color][size];
-    } else if (p.sizeStock && p.sizeStock[size] !== undefined) {
-        maxQty = p.sizeStock[size];
+    if (p.variantStock && p.variantStock[sc] && p.variantStock[sc][ss] !== undefined) {
+        maxQty = p.variantStock[sc][ss];
+    } else if (p.sizeStock && p.sizeStock[ss] !== undefined) {
+        maxQty = p.sizeStock[ss];
     }
 
     const itemKey = `${productId}-${size}-${color}`;
@@ -662,13 +665,15 @@ function finalizeCheckout(customerId = null) {
             console.log(`Deducting ${c.qty} from ${p.name}. Old: ${oldQty}, New: ${p.quantity}`);
 
             if (p.variantStock && c.color && c.size) {
-                if (p.variantStock[c.color] && p.variantStock[c.color][c.size] !== undefined) {
-                    p.variantStock[c.color][c.size] -= c.qty;
-                    console.log(`Deducted from variant ${c.color}/${c.size}. New variant stock: ${p.variantStock[c.color][c.size]}`);
+                const sc = sanitizeKey(c.color);
+                const ss = sanitizeKey(c.size);
+                if (p.variantStock[sc] && p.variantStock[sc][ss] !== undefined) {
+                    p.variantStock[sc][ss] -= c.qty;
+                    console.log(`Deducted from variant ${sc}/${ss}. New variant stock: ${p.variantStock[sc][ss]}`);
                 }
             } else if (p.sizeStock && c.size) {
-                const cleanSize = String(c.size).trim();
-                const sizeKey = Object.keys(p.sizeStock).find(k => k.trim() === cleanSize);
+                const cleanSize = sanitizeKey(String(c.size).trim());
+                const sizeKey = Object.keys(p.sizeStock).find(k => sanitizeKey(k.trim()) === cleanSize);
                 if (sizeKey !== undefined) {
                     p.sizeStock[sizeKey] -= c.qty;
                     console.log(`Deducted from size ${sizeKey}. New size stock: ${p.sizeStock[sizeKey]}`);
