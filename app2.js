@@ -258,7 +258,7 @@ function updateCategorySelects() {
         if (val) el.value = val;
     });
 }
-window.refreshVariantStockInputs = function () {
+window.refreshVariantStockInputs = function (existingVariantStock) {
     const table = document.getElementById('variantInventoryTable');
     const tbody = document.getElementById('variantTableBody');
     const thead = document.getElementById('variantTableHead');
@@ -276,19 +276,26 @@ window.refreshVariantStockInputs = function () {
     // Header: Colors / Sizes
     thead.innerHTML = '<th class="color-col">اللون \\ المقاس</th>' + selectedSizes.map(s => `<th>${s}</th>`).join('');
 
-    // Body: Rows for each color
-    tbody.innerHTML = selectedColors.map(color => `
+    // Body: Rows for each color, pre-fill from existingVariantStock if available
+    tbody.innerHTML = selectedColors.map(color => {
+        const sc = sanitizeKey(color);
+        return `
         <tr>
             <td class="color-col">${color}</td>
-            ${selectedSizes.map(size => `
+            ${selectedSizes.map(size => {
+                const ss = sanitizeKey(size);
+                const val = (existingVariantStock && existingVariantStock[sc] && existingVariantStock[sc][ss] !== undefined) ? existingVariantStock[sc][ss] : 0;
+                return `
                 <td>
                     <input type="number" class="variant-stock-input" 
                         data-color="${color}" data-size="${size}" 
-                        value="0" min="0">
+                        value="${val}" min="0">
                 </td>
-            `).join('')}
+            `;
+            }).join('')}
         </tr>
-    `).join('');
+    `;
+    }).join('');
 
     // Attach listeners
     tbody.querySelectorAll('.variant-stock-input').forEach(input => {
@@ -435,28 +442,21 @@ window.editProduct = function (id) {
         cb.checked = (p.sizes || []).includes(cb.value);
     });
 
-    // Render variant stock table
-    refreshVariantStockInputs();
-
-    // Fill values from variantStock
-    if (p.variantStock) {
-        document.querySelectorAll('.variant-stock-input').forEach(input => {
-            const c = sanitizeKey(input.dataset.color);
-            const s = sanitizeKey(input.dataset.size);
-            if (p.variantStock[c] && p.variantStock[c][s] !== undefined) {
-                input.value = p.variantStock[c][s];
-            }
-        });
-    } else if (p.sizeStock) {
-        // Migration: pull from old sizeStock if it exists
-        document.querySelectorAll('.variant-stock-input').forEach(input => {
-            const s = sanitizeKey(input.dataset.size);
-            if (p.sizeStock[s] !== undefined) {
-                input.value = p.sizeStock[s];
-            }
-        });
+    // Build variant stock data to pass to the table builder
+    let existingStock = p.variantStock || null;
+    // Migration: convert old sizeStock to variantStock format
+    if (!existingStock && p.sizeStock) {
+        existingStock = {};
+        const colors = (p.colors || '').split(',').map(c => c.trim()).filter(c => c);
+        const colorKey = colors.length > 0 ? sanitizeKey(colors[0]) : 'Default';
+        existingStock[colorKey] = {};
+        for (const sizeKey in p.sizeStock) {
+            existingStock[colorKey][sanitizeKey(sizeKey)] = p.sizeStock[sizeKey];
+        }
     }
-    updateProdQuantityFromVariants();
+
+    // Render variant stock table with existing values pre-filled
+    refreshVariantStockInputs(existingStock);
 
     openModal('productModal');
 };
