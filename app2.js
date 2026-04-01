@@ -258,7 +258,15 @@ function updateCategorySelects() {
         if (val) el.value = val;
     });
 }
+// Temporary storage for variant stock data during product edit
+let _editVariantStock = null;
+let _hasExistingVariantData = false;
+
 window.refreshVariantStockInputs = function (existingVariantStock) {
+    // Event listeners pass Event object as first arg - detect and ignore it
+    // Only use the argument if it's a plain object (variant stock data) or null
+    const isRealData = existingVariantStock && !(existingVariantStock instanceof Event) && typeof existingVariantStock === 'object';
+    const stockData = isRealData ? existingVariantStock : _editVariantStock;
     const table = document.getElementById('variantInventoryTable');
     const tbody = document.getElementById('variantTableBody');
     const thead = document.getElementById('variantTableHead');
@@ -284,7 +292,7 @@ window.refreshVariantStockInputs = function (existingVariantStock) {
             <td class="color-col">${color}</td>
             ${selectedSizes.map(size => {
                 const ss = sanitizeKey(size);
-                const val = (existingVariantStock && existingVariantStock[sc] && existingVariantStock[sc][ss] !== undefined) ? existingVariantStock[sc][ss] : 0;
+                const val = (stockData && stockData[sc] && stockData[sc][ss] !== undefined) ? stockData[sc][ss] : 0;
                 return `
                 <td>
                     <input type="number" class="variant-stock-input" 
@@ -302,11 +310,29 @@ window.refreshVariantStockInputs = function (existingVariantStock) {
         input.addEventListener('input', updateProdQuantityFromVariants);
     });
     updateProdQuantityFromVariants();
+
+    // Show a note if editing a product without variant data
+    const noteEl = document.getElementById('variantStockNote');
+    if (noteEl) {
+        const isEditing = !!document.getElementById('prodId').value;
+        if (isEditing && !stockData) {
+            noteEl.innerHTML = '<div style="background:rgba(232,201,109,0.15);color:#e8c96d;padding:8px 12px;border-radius:6px;margin-bottom:8px;font-size:0.85rem;"><i class="fas fa-info-circle"></i> الكميات التفصيلية غير مسجلة — يمكنك تعديل السعر والحفظ بدون تغيير. أو أدخل الكميات لكل لون ومقاس لحفظها.</div>';
+            noteEl.classList.remove('hidden');
+        } else {
+            noteEl.innerHTML = '';
+            noteEl.classList.add('hidden');
+        }
+    }
 };
 
 function updateProdQuantityFromVariants() {
-    const total = [...document.querySelectorAll('.variant-stock-input')].reduce((sum, input) => sum + (+input.value || 0), 0);
-    document.getElementById('prodQuantity').value = total;
+    const inputs = [...document.querySelectorAll('.variant-stock-input')];
+    const total = inputs.reduce((sum, input) => sum + (+input.value || 0), 0);
+    // Only overwrite quantity if there's actual variant data OR user has entered values
+    // Don't overwrite when editing a product that has no variantStock (all inputs are default 0)
+    if (_hasExistingVariantData || total > 0) {
+        document.getElementById('prodQuantity').value = total;
+    }
 }
 
 // Color Tag Management
@@ -362,6 +388,20 @@ function initProducts() {
         document.getElementById('prodColors').value = '';
         document.getElementById('prodColorsInput').value = '';
 
+        // Reset variant data flags for new product
+        _editVariantStock = null;
+        _hasExistingVariantData = false;
+
+        // Reset quantity field to readonly (auto-calculated)
+        const qtyField = document.getElementById('prodQuantity');
+        qtyField.readOnly = true;
+        qtyField.style.background = 'var(--bg-secondary)';
+        qtyField.style.cursor = 'not-allowed';
+
+        // Hide note
+        const noteEl = document.getElementById('variantStockNote');
+        if (noteEl) { noteEl.innerHTML = ''; noteEl.classList.add('hidden'); }
+
         updateCategorySelects(); openModal('productModal');
         setTimeout(() => document.getElementById('prodCode').focus(), 300);
     });
@@ -387,11 +427,14 @@ function initProducts() {
         const sizes = [...document.querySelectorAll('#productForm .size-checkboxes input:checked')].map(cb => cb.value);
 
         const variantStock = {};
+        let hasAnyVariantValue = false;
         document.querySelectorAll('.variant-stock-input').forEach(input => {
             const c = sanitizeKey(input.dataset.color);
             const s = sanitizeKey(input.dataset.size);
             if (!variantStock[c]) variantStock[c] = {};
-            variantStock[c][s] = +input.value;
+            const val = +input.value;
+            variantStock[c][s] = val;
+            if (val > 0) hasAnyVariantValue = true;
         });
 
         const data = {
@@ -402,10 +445,14 @@ function initProducts() {
             salePrice: +document.getElementById('prodSalePrice').value,
             quantity: +document.getElementById('prodQuantity').value,
             sizes,
-            variantStock,
             colors: document.getElementById('prodColors').value,
             description: document.getElementById('prodDescription').value
         };
+
+        // Only save variantStock if there are actual non-zero values
+        if (hasAnyVariantValue) {
+            data.variantStock = variantStock;
+        }
 
         const editId = document.getElementById('prodId').value;
         if (editId) {
@@ -437,11 +484,6 @@ window.editProduct = function (id) {
 
     updateCategorySelects(); document.getElementById('prodCategory').value = p.category;
 
-    // Set size checkboxes
-    document.querySelectorAll('#productForm .size-checkboxes input').forEach(cb => {
-        cb.checked = (p.sizes || []).includes(cb.value);
-    });
-
     // Build variant stock data to pass to the table builder
     let existingStock = p.variantStock || null;
     // Migration: convert old sizeStock to variantStock format
@@ -455,8 +497,32 @@ window.editProduct = function (id) {
         }
     }
 
+    // Store variant stock so event-triggered calls can access it
+    _editVariantStock = existingStock;
+    _hasExistingVariantData = !!existingStock;
+
+    // Set size checkboxes (this triggers change events which call refreshVariantStockInputs)
+    document.querySelectorAll('#productForm .size-checkboxes input').forEach(cb => {
+        cb.checked = (p.sizes || []).includes(cb.value);
+    });
+
     // Render variant stock table with existing values pre-filled
     refreshVariantStockInputs(existingStock);
+
+    // If no variant data, make quantity editable directly
+    const qtyField = document.getElementById('prodQuantity');
+    if (!existingStock) {
+        qtyField.readOnly = false;
+        qtyField.style.background = '';
+        qtyField.style.cursor = '';
+    } else {
+        qtyField.readOnly = true;
+        qtyField.style.background = 'var(--bg-secondary)';
+        qtyField.style.cursor = 'not-allowed';
+    }
+
+    // Clear the temporary storage after everything is set up
+    _editVariantStock = null;
 
     openModal('productModal');
 };
