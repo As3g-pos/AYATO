@@ -93,6 +93,10 @@
                     <i class="fas fa-user-tie"></i>
                     <span>الموظفين</span>
                 </a>
+                <a href="#" class="nav-link" data-page="shifts">
+                    <i class="fas fa-clock"></i>
+                    <span>الورديات</span>
+                </a>
                 <a href="#" class="nav-link" data-page="discounts">
                     <i class="fas fa-percent"></i>
                     <span>العروض والخصومات</span>
@@ -112,6 +116,10 @@
                 <a href="#" class="nav-link" data-page="reports">
                     <i class="fas fa-chart-line"></i>
                     <span>التقارير</span>
+                </a>
+                <a href="#" class="nav-link" data-page="logs">
+                    <i class="fas fa-history"></i>
+                    <span>سجل العمليات</span>
                 </a>
                 <a href="#" class="nav-link" data-page="settings">
                     <i class="fas fa-gear"></i>
@@ -345,6 +353,7 @@
                             <tr>
                                 <th>رقم الفاتورة</th>
                                 <th>التاريخ</th>
+                                <th>الساعة</th>
                                 <th>العميل</th>
                                 <th>المنتجات</th>
                                 <th>الإجمالي</th>
@@ -578,6 +587,68 @@
                 </div>
             </section>
 
+            <!-- ============ SHIFTS PAGE ============ -->
+            <section class="page" id="page-shifts">
+                <div class="reports-filters" style="margin-bottom: 20px; display: flex; gap: 20px; flex-wrap: wrap;">
+                    <div class="stat-card emerald" style="flex: 1; min-width: 200px; padding: 15px;">
+                        <div class="stat-icon" style="font-size: 1.5rem;"><i class="fas fa-clock"></i></div>
+                        <div class="stat-info">
+                            <h3 id="shiftsTotalCount">0</h3>
+                            <p>إجمالي الورديات</p>
+                        </div>
+                    </div>
+                    <div class="stat-card gold" style="flex: 1; min-width: 200px; padding: 15px;">
+                        <div class="stat-icon" style="font-size: 1.5rem;"><i class="fas fa-coins"></i></div>
+                        <div class="stat-info">
+                            <h3 id="shiftsTotalSales">0</h3>
+                            <p>إجمالي مبيعات الورديات</p>
+                        </div>
+                    </div>
+                    <div class="stat-card rose" style="flex: 1; min-width: 200px; padding: 15px;">
+                        <div class="stat-icon" style="font-size: 1.5rem;"><i class="fas fa-play-circle"></i></div>
+                        <div class="stat-info">
+                            <h3 id="shiftsActiveCount">0</h3>
+                            <p>ورديات نشطة</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="page-header">
+                    <div class="page-header-actions">
+                        <button class="btn-primary" id="openShiftBtn">
+                            <i class="fas fa-play-circle"></i> فتح وردية جديدة
+                        </button>
+                    </div>
+                    <div class="filter-bar">
+                        <input type="date" id="shiftDateFilter" class="filter-input">
+                        <select id="shiftStatusFilter" class="filter-select">
+                            <option value="">كل الحالات</option>
+                            <option value="active">نشطة</option>
+                            <option value="closed">مغلقة</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="data-table" id="shiftsTable">
+                        <thead>
+                            <tr>
+                                <th>رقم الوردية</th>
+                                <th>الموظف</th>
+                                <th>وقت البدء</th>
+                                <th>وقت الانتهاء</th>
+                                <th>المبلغ الافتتاحي</th>
+                                <th>إجمالي المبيعات</th>
+                                <th>عدد الفواتير</th>
+                                <th>الحالة</th>
+                                <th>الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="shiftsBody"></tbody>
+                    </table>
+                </div>
+                <!-- Shift Invoice Log -->
+                <div id="shiftInvoiceLog" style="margin-top: 25px;"></div>
+            </section>
+
             <!-- ============ REPORTS PAGE ============ -->
             <section class="page" id="page-reports">
                 <div class="reports-filters">
@@ -611,6 +682,29 @@
                             </tr>
                         </thead>
                         <tbody id="reportBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ============ LOGS PAGE ============ -->
+            <section class="page" id="page-logs">
+                <div class="page-header">
+                    <div class="filter-bar">
+                        <input type="date" id="logDateFilter" class="filter-input">
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="data-table" id="logsTable">
+                        <thead>
+                            <tr>
+                                <th>التاريخ والوقت</th>
+                                <th>نوع العملية</th>
+                                <th>بواسطة</th>
+                                <th>الإجراء على</th>
+                                <th>التفاصيل</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsBody"></tbody>
                     </table>
                 </div>
             </section>
@@ -1094,6 +1188,8 @@
                                 class="empPagePerm" value="reports"> التقارير</label>
                         <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox"
                                 class="empPagePerm" value="settings"> الإعدادات</label>
+                        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox"
+                                class="empPagePerm" value="shifts"> الورديات</label>
                     </div>
                 </div>
                 <input type="hidden" id="empId">
@@ -1323,6 +1419,98 @@
                 </div>
             </div>
             <div class="modal-body" id="invoicePrintContent"></div>
+        </div>
+    </div>
+
+    <!-- Shift Modal -->
+    <div class="modal-overlay hidden" id="shiftModal">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h3 id="shiftModalTitle">فتح وردية جديدة</h3>
+                <button class="modal-close" data-close="shiftModal">&times;</button>
+            </div>
+            <form id="shiftForm" class="modal-body">
+                <div class="form-group">
+                    <label><i class="fas fa-user"></i> الموظف</label>
+                    <select id="shiftEmployee" required>
+                        <option value="">اختر الموظف</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-money-bill-wave"></i> المبلغ الافتتاحي (الدرج)</label>
+                    <input type="number" id="shiftOpeningAmount" min="0" value="0" required>
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-sticky-note"></i> ملاحظات</label>
+                    <textarea id="shiftNotes" rows="2" placeholder="ملاحظات اختيارية..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-play-circle"></i> فتح الوردية
+                    </button>
+                    <button type="button" class="btn-secondary" data-close="shiftModal">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Invoice Modal -->
+    <div class="modal-overlay hidden" id="editInvoiceModal">
+        <div class="modal modal-md">
+            <div class="modal-header">
+                <h3>تعديل الفاتورة</h3>
+                <button class="modal-close" data-close="editInvoiceModal">&times;</button>
+            </div>
+            <form id="editInvoiceForm" class="modal-body">
+                <input type="hidden" id="editInvId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>خصم إضافي</label>
+                        <input type="number" id="editInvDiscount" min="0" value="0" step="any">
+                    </div>
+                    <div class="form-group">
+                        <label>الإجمالي النهائي</label>
+                        <input type="number" id="editInvTotal" required step="any">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>السبب / ملاحظات للتعديل</label>
+                    <textarea id="editInvNotes" rows="2" required placeholder="سبب التعديل..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> حفظ التعديل
+                    </button>
+                    <button type="button" class="btn-secondary" data-close="editInvoiceModal">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Return Modal -->
+    <div class="modal-overlay hidden" id="editReturnModal">
+        <div class="modal modal-md">
+            <div class="modal-header">
+                <h3>تعديل المرتجع</h3>
+                <button class="modal-close" data-close="editReturnModal">&times;</button>
+            </div>
+            <form id="editReturnForm" class="modal-body">
+                <input type="hidden" id="editRetId">
+                <div class="form-group">
+                    <label>المبلغ (الفرق)</label>
+                    <input type="number" id="editRetAmount" min="0" required step="any">
+                </div>
+                <div class="form-group">
+                    <label>السبب / ملاحظات للتعديل</label>
+                    <textarea id="editRetNotes" rows="2" required placeholder="سبب التعديل..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> حفظ التعديل
+                    </button>
+                    <button type="button" class="btn-secondary" data-close="editReturnModal">إلغاء</button>
+                </div>
+            </form>
         </div>
     </div>
 

@@ -717,7 +717,7 @@ function finalizeCheckout(customerId = null) {
     const afterDiscount = subtotal - discountAmount; const tax = afterDiscount * taxRate / 100; const total = afterDiscount + tax;
 
     // Create invoice
-    const invoice = { id: genInvId(), date: new Date().toISOString().split('T')[0], customerId, items: cart.map(c => ({ itemKey: c.itemKey, productId: c.productId, name: c.name, price: c.price, qty: c.qty, size: c.size, color: c.color })), subtotal, discount: discountAmount, tax, total, paymentMethod: selectedPayment, status: 'completed' };
+    const invoice = { id: genInvId(), date: new Date().toISOString().split('T')[0], time: new Date().toTimeString().split(' ')[0], customerId, shiftId: window.activeShiftId || null, items: cart.map(c => ({ itemKey: c.itemKey, productId: c.productId, name: c.name, price: c.price, qty: c.qty, size: c.size, color: c.color })), subtotal, discount: discountAmount, tax, total, paymentMethod: selectedPayment, status: 'completed' };
     const invoices = loadData('invoices'); invoices.push(invoice); saveData('invoices', invoices);
 
     // Update stock

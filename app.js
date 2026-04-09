@@ -33,8 +33,10 @@ const DEFAULT_DATA = {
     discounts: [],
     returns: [],
     salesOrders: [],
+    shifts: [],
     settings: { storeName: 'JAYA Luxury Boutique', storeAddress: 'برج المملكة - الدور الثاني', storePhone: '+966 50 000 0000', taxRate: 15, currency: 'ر.س', nextInvoiceNumber: 1 },
-    notifications: []
+    notifications: [],
+    logs: []
 };
 
 // ===== FIREBASE DATA LAYER (Realtime Database) =====
@@ -108,7 +110,9 @@ function listenForChanges() {
                         else if (page === 'returns') renderReturns();
                         else if (page === 'barcode') renderBarcode();
                         else if (page === 'sales') renderSalesOrders();
+                        else if (page === 'shifts') renderShifts();
                         else if (page === 'reports') renderReport();
+                        else if (page === 'logs') renderLogs();
                         else if (page === 'settings') renderSettings();
                     }
                 }
@@ -235,7 +239,7 @@ function initNav() {
                 dashboard: 'لوحة التحكم', products: 'المنتجات', pos: 'نقطة البيع',
                 invoices: 'الفواتير', customers: 'العملاء', inventory: 'المخزون',
                 employees: 'الموظفين', discounts: 'العروض والخصومات', returns: 'المرتجعات',
-                sales: 'المبيعات', reports: 'التقارير', settings: 'الإعدادات'
+                sales: 'المبيعات', shifts: 'الورديات', reports: 'التقارير', settings: 'الإعدادات', logs: 'سجل العمليات'
             };
             document.getElementById('pageTitle').textContent = titles[page] || '';
 
@@ -251,11 +255,13 @@ function initNav() {
             else if (page === 'returns') renderReturns();
             else if (page === 'barcode') renderBarcode();
             else if (page === 'sales') renderSalesOrders();
+            else if (page === 'shifts') renderShifts();
             else if (page === 'reports') {
                 const rDate = document.getElementById('reportDate');
                 if (rDate) rDate.value = new Date().toISOString().split('T')[0];
                 renderReport();
             }
+            else if (page === 'logs') renderLogs();
             else if (page === 'settings') renderSettings();
         });
     });
@@ -356,6 +362,53 @@ function initNotifPanel() {
     document.getElementById('notifBtn').addEventListener('click', () => document.getElementById('notifPanel').classList.toggle('hidden'));
     document.getElementById('clearNotifs').addEventListener('click', () => { saveData('notifications', []); renderNotifications(); });
     document.addEventListener('click', e => { if (!e.target.closest('#notifPanel') && !e.target.closest('#notifBtn')) document.getElementById('notifPanel').classList.add('hidden'); });
+}
+
+// ===== LOGS =====
+function logAction(actionType, targetId, details) {
+    const logs = loadData('logs') || [];
+    const logTypeAr = {
+        'invoice_deleted': 'حذف فاتورة',
+        'invoice_edited': 'تعديل فاتورة',
+        'return_deleted': 'حذف مرتجع',
+        'return_edited': 'تعديل مرتجع'
+    };
+    logs.unshift({
+        id: genId(logs),
+        type: actionType,
+        typeAr: logTypeAr[actionType] || actionType,
+        targetId: targetId,
+        details: details,
+        user: currentUser ? currentUser.name : 'Unknown',
+        timestamp: new Date().toISOString()
+    });
+    saveData('logs', logs);
+}
+
+function renderLogs() {
+    const logs = loadData('logs') || [];
+    const dateFilter = document.getElementById('logDateFilter')?.value || '';
+    const typeFilter = document.getElementById('logTypeFilter')?.value || '';
+    const filtered = logs.filter(l => {
+        const dMatch = dateFilter ? l.timestamp.startsWith(dateFilter) : true;
+        const tMatch = typeFilter ? l.type === typeFilter : true;
+        return dMatch && tMatch;
+    });
+
+    document.getElementById('logsBody').innerHTML = filtered.map(l => {
+        return `<tr>
+            <td>${new Date(l.timestamp).toLocaleString('ar-EG')}</td>
+            <td><span class="badge" style="background:var(--gold-2);color:#000;">${l.typeAr}</span></td>
+            <td>${l.user}</td>
+            <td><strong>${l.targetId}</strong></td>
+            <td>${l.details}</td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px">لا توجد سجلات مطابقة</td></tr>';
+}
+
+function initLogs() {
+    document.getElementById('logDateFilter')?.addEventListener('change', renderLogs);
+    document.getElementById('logTypeFilter')?.addEventListener('change', renderLogs);
 }
 
 // ===== CHECK LOW STOCK =====

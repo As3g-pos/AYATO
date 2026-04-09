@@ -13,6 +13,7 @@ function renderInvoices() {
         return `<tr>
             <td><strong>${inv.id}</strong></td>
             <td>${fmtDate(inv.date)}</td>
+            <td style="color:var(--gold-3); direction:ltr; text-align:right;">${inv.time || '-'}</td>
             <td>${cust ? cust.name : 'عميل جديد'}</td>
             <td><div class="invoice-items-preview" title="${inv.items.map(it => it.name).join('\n')}">${inv.items.length} منتجات</div></td>
             <td><strong>${fmt(inv.total)}</strong></td>
@@ -21,6 +22,10 @@ function renderInvoices() {
             <td class="actions">
                 <button class="btn-view" onclick="viewInvoice('${inv.id}')" title="عرض الفاتورة"><i class="fas fa-eye"></i></button>
                 <button class="btn-print" onclick="viewInvoice('${inv.id}')" title="طباعة"><i class="fas fa-print"></i></button>
+                ${currentUser && currentUser.role === 'admin' ? `
+                <button class="btn-edit" onclick="editInvoice('${inv.id}')" title="تعديل"><i class="fas fa-edit"></i></button>
+                <button class="btn-delete" onclick="deleteInvoice('${inv.id}')" title="حذف"><i class="fas fa-trash"></i></button>
+                ` : ''}
             </td>
         </tr>`;
     }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px">لا توجد فواتير</td></tr>';
@@ -31,6 +36,78 @@ function initInvoices() {
     document.getElementById('printInvoiceBtn')?.addEventListener('click', () => window.print());
 }
 window.viewInvoice = function (id) { const inv = loadData('invoices').find(i => i.id === id); if (inv) showInvoicePrint(inv); };
+
+// ===== INVOICE ADMIN ACTIONS =====
+window.deleteInvoice = function(id) {
+    if (!confirm('هل أنت متأكد من حذف الفاتورة واسترجاع المنتجات للمخزون؟ هذا الإجراء لا يمكن التراجع عنه.')) return;
+    
+    const invoices = loadData('invoices') || [];
+    const idx = invoices.findIndex(i => i.id === id);
+    if (idx === -1) return;
+    
+    const inv = invoices[idx];
+    
+    // Restore items to inventory
+    const products = loadData('products') || [];
+    if (inv.items) {
+        inv.items.forEach(it => {
+            const p = products.find(prod => prod.id == it.productId);
+            if (p) {
+                p.quantity = (p.quantity || 0) + it.qty;
+                if (p.variantStock && it.color && it.size) {
+                    if (!p.variantStock[it.color]) p.variantStock[it.color] = {};
+                    p.variantStock[it.color][it.size] = (p.variantStock[it.color][it.size] || 0) + it.qty;
+                } else if (p.sizeStock && it.size) {
+                    p.sizeStock[it.size] = (p.sizeStock[it.size] || 0) + it.qty;
+                }
+            }
+        });
+        saveData('products', products);
+    }
+    
+    invoices.splice(idx, 1);
+    saveData('invoices', invoices);
+    if(window.logAction) window.logAction('invoice_deleted', id, `حذف فاتورة بقيمة ${inv.total}`);
+    toast('تم حذف الفاتورة بنجاح واسترجاع المخزون');
+    renderInvoices();
+    renderDashboard();
+    renderInventory();
+};
+
+window.editInvoice = function(id) {
+    const inv = loadData('invoices').find(i => i.id === id);
+    if (!inv) return;
+    
+    document.getElementById('editInvId').value = id;
+    document.getElementById('editInvDiscount').value = inv.discount || 0;
+    document.getElementById('editInvTotal').value = inv.total || 0;
+    document.getElementById('editInvNotes').value = '';
+    
+    openModal('editInvoiceModal');
+};
+
+document.getElementById('editInvoiceForm')?.addEventListener('submit', e => {
+    e.preventDefault();
+    const id = document.getElementById('editInvId').value;
+    const discount = +document.getElementById('editInvDiscount').value;
+    const total = +document.getElementById('editInvTotal').value;
+    const notes = document.getElementById('editInvNotes').value;
+    
+    const invoices = loadData('invoices') || [];
+    const invIndex = invoices.findIndex(i => i.id === id);
+    if(invIndex > -1) {
+        const oldTotal = invoices[invIndex].total;
+        invoices[invIndex].discount = discount;
+        invoices[invIndex].total = total;
+        saveData('invoices', invoices);
+        if(window.logAction) window.logAction('invoice_edited', id, `تعديل القيمة من ${oldTotal} إلى ${total}. السبب: ${notes || '-'}`);
+        toast('تم تعديل الفاتورة');
+        closeModal('editInvoiceModal');
+        renderInvoices();
+        renderDashboard();
+    }
+});
+
 function getReceiptDesign() {
     const s = loadData('settings');
     return {
@@ -460,8 +537,12 @@ function renderReturns() {
             <td>${r.oldProduct.qty}</td>
             <td>${fmtDate(r.date)}</td>
             <td>${fmt(r.amount)} (${r.diffType === 'to_pay' ? 'مدفوع' : r.diffType === 'refund' ? 'مسترد' : 'متساوي'})</td>
-            <td>
+            <td class="actions">
                 <button class="btn-small" onclick="viewExchangeDetail('${r.id}')"><i class="fas fa-eye"></i></button>
+                ${currentUser && currentUser.role === 'admin' ? `
+                <button class="btn-edit" onclick="editReturn('${r.id}')" title="تعديل"><i class="fas fa-edit"></i></button>
+                <button class="btn-delete" onclick="deleteReturn('${r.id}')" title="حذف"><i class="fas fa-trash"></i></button>
+                ` : ''}
             </td>
         </tr>`
     ).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:30px">لا توجد عمليات استبدال</td></tr>';
@@ -551,6 +632,79 @@ window.viewExchangeDetail = function (id) {
     openModal('invoicePrintModal');
 };
 
+// ===== RETURNS ADMIN ACTIONS =====
+window.deleteReturn = function(id) {
+    if (!confirm('هل أنت متأكد من حذف هذا المرتجع وعكس العملية على المخزون؟')) return;
+    
+    const returns = loadData('returns') || [];
+    const idx = returns.findIndex(r => r.id === id);
+    if (idx === -1) return;
+    
+    const exch = returns[idx];
+    const products = loadData('products') || [];
+    
+    // Reverse Return Action:
+    const pOld = products.find(p => p.id == exch.oldProduct.id);
+    if (pOld) {
+        pOld.quantity = (pOld.quantity || 0) - exch.oldProduct.qty;
+        if (pOld.variantStock && exch.oldProduct.color && exch.oldProduct.size) {
+            pOld.variantStock[exch.oldProduct.color][exch.oldProduct.size] = (pOld.variantStock[exch.oldProduct.color][exch.oldProduct.size] || 0) - exch.oldProduct.qty;
+        } else if (pOld.sizeStock && exch.oldProduct.size) {
+            pOld.sizeStock[exch.oldProduct.size] = (pOld.sizeStock[exch.oldProduct.size] || 0) - exch.oldProduct.qty;
+        }
+    }
+    
+    const pNew = products.find(p => p.id == exch.newProduct.id);
+    if (pNew) {
+        pNew.quantity = (pNew.quantity || 0) + exch.newProduct.qty;
+        if (pNew.variantStock && exch.newProduct.color && exch.newProduct.size) {
+            pNew.variantStock[exch.newProduct.color][exch.newProduct.size] = (pNew.variantStock[exch.newProduct.color][exch.newProduct.size] || 0) + exch.newProduct.qty;
+        } else if (pNew.sizeStock && exch.newProduct.size) {
+            pNew.sizeStock[exch.newProduct.size] = (pNew.sizeStock[exch.newProduct.size] || 0) + exch.newProduct.qty;
+        }
+    }
+    
+    saveData('products', products);
+    returns.splice(idx, 1);
+    saveData('returns', returns);
+    
+    if(window.logAction) window.logAction('return_deleted', id, `حذف المرتجع وتحديث المخزون`);
+    toast('تم حذف المرتجع بنجاح');
+    renderReturns();
+    renderInventory();
+};
+
+window.editReturn = function(id) {
+    const returns = loadData('returns') || [];
+    const exch = returns.find(r => r.id === id);
+    if (!exch) return;
+    
+    document.getElementById('editRetId').value = id;
+    document.getElementById('editRetAmount').value = exch.amount || 0;
+    document.getElementById('editRetNotes').value = '';
+    
+    openModal('editReturnModal');
+};
+
+document.getElementById('editReturnForm')?.addEventListener('submit', e => {
+    e.preventDefault();
+    const id = document.getElementById('editRetId').value;
+    const amount = +document.getElementById('editRetAmount').value;
+    const notes = document.getElementById('editRetNotes').value;
+    
+    const returns = loadData('returns') || [];
+    const retIndex = returns.findIndex(r => r.id === id);
+    if(retIndex > -1) {
+        const oldAmount = returns[retIndex].amount;
+        returns[retIndex].amount = amount;
+        saveData('returns', returns);
+        if(window.logAction) window.logAction('return_edited', id, `تعديل المبلغ من ${oldAmount} إلى ${amount}. السبب: ${notes || '-'}`);
+        toast('تم تعديل المرتجع');
+        closeModal('editReturnModal');
+        renderReturns();
+    }
+});
+
 function renderReplacementProducts() {
     const prods = loadData('products');
     const select = document.getElementById('exchNewProductId');
@@ -604,9 +758,13 @@ function initReturns() {
             submitBtn.style.cursor = 'pointer';
         }
 
-        const invoices = loadData('invoices');
+        const invoices = loadData('invoices') || [];
         const exchanges = loadData('returns') || [];
-        const filteredInvoices = invoices.filter(inv => !exchanges.some(ex => ex.invoiceId === inv.id));
+        
+        let filteredInvoices = invoices;
+        if (!currentUser || currentUser.role !== 'admin') {
+            filteredInvoices = invoices.filter(inv => !exchanges.some(ex => ex.invoiceId === inv.id));
+        }
 
         document.getElementById('retInvoiceId').innerHTML = '<option value="">اختر فاتورة</option>' +
             filteredInvoices.map(i => `<option value="${i.id}">${i.id} - ${fmt(i.total)}</option>`).join('');
@@ -634,13 +792,19 @@ function initReturns() {
             itemsList.innerHTML = inv.items.map(it => `<div>- ${it.name} | ${it.size || ''} - ${it.color || ''} | ${fmt(it.price)}</div>`).join('');
             document.getElementById('retProductId').innerHTML = inv.items.map(it => `<option value="${it.productId}" data-price="${it.price}" data-name="${it.name}" data-size="${it.size || ''}" data-color="${it.color || ''}">${it.name} [${it.color || ''} / ${it.size || ''}]</option>`).join('');
 
-            if (alreadyExchanged) {
+            if (alreadyExchanged && (!currentUser || currentUser.role !== 'admin')) {
                 warningEl.classList.remove('hidden');
                 submitBtn.disabled = true;
                 submitBtn.style.opacity = '0.5';
                 submitBtn.style.cursor = 'not-allowed';
             } else {
-                warningEl.classList.add('hidden');
+                if (alreadyExchanged && currentUser && currentUser.role === 'admin') {
+                    warningEl.classList.remove('hidden');
+                    warningEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> هذه الفاتورة تم استبدالها مسبقاً، مسموح لك كمدير بعمل مرتجع آخر.';
+                } else {
+                    warningEl.classList.add('hidden');
+                    warningEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> هذه الفاتورة تم استبدالها مسبقاً!';
+                }
                 submitBtn.disabled = false;
                 submitBtn.style.opacity = '1';
                 submitBtn.style.cursor = 'pointer';
@@ -1297,10 +1461,352 @@ function initGlobalSearch() {
     });
 }
 
+// ===== SHIFTS MANAGEMENT =====
+window.activeShiftId = null;
+
+function fmtTime(isoStr) {
+    if (!isoStr) return '-';
+    const d = new Date(isoStr);
+    return d.toLocaleDateString('ar-u-nu-latn', { month: 'short', day: 'numeric' }) + ' ' +
+           d.toLocaleTimeString('ar-u-nu-latn', { hour: '2-digit', minute: '2-digit' });
+}
+
+function getShiftInvoices(shift) {
+    const invoices = loadData('invoices') || [];
+    // Method 1: invoices linked by shiftId
+    let shiftInvs = invoices.filter(inv => inv.shiftId === shift.id);
+    // Method 2: fallback - invoices created during the shift time window
+    if (shiftInvs.length === 0 && shift.startTime) {
+        const start = new Date(shift.startTime).getTime();
+        const end = shift.endTime ? new Date(shift.endTime).getTime() : Date.now();
+        shiftInvs = invoices.filter(inv => {
+            const invTime = new Date(inv.date + 'T' + (inv.time || '00:00')).getTime();
+            return invTime >= start && invTime <= end;
+        });
+    }
+    return shiftInvs;
+}
+
+function renderShifts() {
+    const shifts = loadData('shifts') || [];
+    const dateF = document.getElementById('shiftDateFilter')?.value || '';
+    const statusF = document.getElementById('shiftStatusFilter')?.value || '';
+
+    const filtered = shifts.filter(s => {
+        if (statusF && s.status !== statusF) return false;
+        if (dateF && s.startTime && !s.startTime.startsWith(dateF)) return false;
+        return true;
+    });
+
+    // Stats
+    const activeShifts = shifts.filter(s => s.status === 'active');
+    const totalSales = shifts.reduce((sum, s) => sum + (s.totalSales || 0), 0);
+
+    const el = id => document.getElementById(id);
+    if (el('shiftsTotalCount')) el('shiftsTotalCount').textContent = shifts.length;
+    if (el('shiftsTotalSales')) el('shiftsTotalSales').textContent = fmt(totalSales);
+    if (el('shiftsActiveCount')) el('shiftsActiveCount').textContent = activeShifts.length;
+
+    // Detect active shift for current user
+    if (currentUser) {
+        const myActive = activeShifts.find(s => s.employeeId === currentUser.id || s.employeeName === currentUser.name);
+        window.activeShiftId = myActive ? myActive.id : null;
+    }
+
+    // Table
+    document.getElementById('shiftsBody').innerHTML = filtered.slice().reverse().map(s => {
+        const shiftInvoices = getShiftInvoices(s);
+        const liveSales = shiftInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+        const displaySales = s.status === 'closed' ? (s.totalSales || 0) : liveSales;
+        const displayInvCount = s.status === 'closed' ? (s.totalInvoices || 0) : shiftInvoices.length;
+
+        const statusBadge = s.status === 'active'
+            ? '<span class="shift-badge active"><i class="fas fa-circle" style="font-size:0.5rem"></i> نشطة</span>'
+            : '<span class="shift-badge closed"><i class="fas fa-stop-circle" style="font-size:0.6rem"></i> مغلقة</span>';
+
+        return `<tr>
+            <td><strong>SH-${String(s.id).padStart(3, '0')}</strong></td>
+            <td>${s.employeeName || '-'}</td>
+            <td>${fmtTime(s.startTime)}</td>
+            <td>${fmtTime(s.endTime)}</td>
+            <td>${fmt(s.openingAmount || 0)}</td>
+            <td><strong style="color:var(--gold-4)">${fmt(displaySales)}</strong></td>
+            <td>${displayInvCount}</td>
+            <td>${statusBadge}</td>
+            <td class="actions">
+                <button class="btn-view" onclick="viewShiftDetail(${s.id})" title="تفاصيل"><i class="fas fa-eye"></i></button>
+                ${s.status === 'active' ? `<button class="btn-delete" onclick="closeShift(${s.id})" title="إغلاق الوردية" style="background:rgba(231,76,60,0.1);color:var(--red);border:1px solid rgba(231,76,60,0.3);"><i class="fas fa-stop-circle"></i></button>` : ''}
+            </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:30px">لا توجد ورديات</td></tr>';
+
+    // Render active/latest shift inline invoice log
+    if (currentUser) {
+        const myActive = activeShifts.find(s => s.employeeId === currentUser.id || s.employeeName === currentUser.name);
+        const shiftToLog = myActive || (filtered.find(s => s.employeeId === currentUser.id || s.employeeName === currentUser.name));
+        const logHtml = document.getElementById('shiftInvoiceLog');
+        if (shiftToLog && logHtml) {
+            const shiftInvs = getShiftInvoices(shiftToLog).reverse(); // Latest first
+            
+            const tableContent = shiftInvs.length > 0 ? `
+                <table class="data-table" style="font-size:0.85rem;">
+                    <thead>
+                        <tr>
+                            <th>رقم الفاتورة</th>
+                            <th>الوقت</th>
+                            <th>المنتجات</th>
+                            <th>الإجمالي</th>
+                            <th>الحالة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${shiftInvs.map(inv => `<tr>
+                            <td><strong>${inv.id}</strong></td>
+                            <td style="color:var(--gold-3); direction:ltr; text-align:right;">${inv.time || '-'}</td>
+                            <td><div style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${inv.items.map(it => it.name).join(', ')}">${inv.items.map(it => it.name).join(', ')}</div></td>
+                            <td><strong style="color:var(--gold-4)">${fmt(inv.total)}</strong></td>
+                            <td>${inv.status === 'completed' ? '<span class="status-badge status-paid" style="padding:2px 8px; font-size:0.7rem;">مكتمل</span>' : '<span class="status-badge status-cancelled" style="padding:2px 8px; font-size:0.7rem;">صادر</span>'}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            ` : '<div style="text-align:center; color:var(--text-muted); padding:20px; background:var(--bg-secondary); border-radius:8px; border:1px solid var(--border);">لم يتم إجراء أي مبيعات خلال هذه الوردية حتى الآن</div>';
+
+            logHtml.innerHTML = `
+                <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid var(--border); padding-bottom:10px;">
+                        <h4 style="color:var(--gold-3); display:flex; align-items:center; gap:8px;">
+                            <i class="fas fa-list-alt"></i> سجل فواتير الوردية ${shiftToLog.status === 'active' ? '(النشطة حالياً)' : '(السابقة)'}
+                        </h4>
+                        <div class="shift-badge ${shiftToLog.status}">
+                            <i class="fas fa-barcode"></i> ${shiftInvs.length} فواتير
+                        </div>
+                    </div>
+                    ${tableContent}
+                </div>
+            `;
+        } else if (logHtml) {
+            logHtml.innerHTML = '';
+        }
+    }
+}
+
+function initShifts() {
+    document.getElementById('openShiftBtn')?.addEventListener('click', () => {
+        document.getElementById('shiftForm').reset();
+        document.getElementById('shiftModalTitle').textContent = 'فتح وردية جديدة';
+
+        // Populate employees dropdown
+        const emps = loadData('employees') || [];
+        const sel = document.getElementById('shiftEmployee');
+        sel.innerHTML = '<option value="">اختر الموظف</option>' +
+            emps.map(e => `<option value="${e.id}" ${currentUser && currentUser.id === e.id ? 'selected' : ''}>${e.name}</option>`).join('');
+
+        // Check if current user already has an active shift
+        const shifts = loadData('shifts') || [];
+        const activeExists = shifts.find(s => s.status === 'active' && currentUser && (s.employeeId === currentUser.id));
+        if (activeExists) {
+            toast('لديك وردية نشطة بالفعل! أغلقها أولاً', 'warning');
+            return;
+        }
+
+        openModal('shiftModal');
+    });
+
+    document.getElementById('shiftForm')?.addEventListener('submit', e => {
+        e.preventDefault();
+        const shifts = loadData('shifts') || [];
+        const empSel = document.getElementById('shiftEmployee');
+        const empId = +empSel.value;
+        const empName = empSel.options[empSel.selectedIndex]?.text || '';
+
+        if (!empId) { toast('يرجى اختيار الموظف', 'error'); return; }
+
+        // Check if this employee already has an active shift
+        const activeExists = shifts.find(s => s.status === 'active' && s.employeeId === empId);
+        if (activeExists) {
+            toast('هذا الموظف لديه وردية نشطة بالفعل!', 'warning');
+            return;
+        }
+
+        const newShift = {
+            id: genId(shifts),
+            employeeId: empId,
+            employeeName: empName,
+            openingAmount: +document.getElementById('shiftOpeningAmount').value || 0,
+            startTime: new Date().toISOString(),
+            endTime: null,
+            closingAmount: null,
+            totalSales: 0,
+            totalInvoices: 0,
+            status: 'active',
+            notes: document.getElementById('shiftNotes').value || ''
+        };
+
+        shifts.push(newShift);
+        saveData('shifts', shifts);
+        window.activeShiftId = newShift.id;
+
+        toast('تم فتح الوردية بنجاح ✅');
+        addNotification(`وردية جديدة SH-${String(newShift.id).padStart(3, '0')} - ${empName}`, 'clock');
+        closeModal('shiftModal');
+        renderShifts();
+    });
+
+    document.getElementById('shiftDateFilter')?.addEventListener('change', renderShifts);
+    document.getElementById('shiftStatusFilter')?.addEventListener('change', renderShifts);
+}
+
+window.closeShift = function(shiftId) {
+    if (!confirm('هل تريد إغلاق هذه الوردية؟')) return;
+
+    const shifts = loadData('shifts') || [];
+    const shift = shifts.find(s => s.id === shiftId);
+    if (!shift) { toast('الوردية غير موجودة', 'error'); return; }
+    if (shift.status === 'closed') { toast('هذه الوردية مغلقة بالفعل', 'warning'); return; }
+
+    // Calculate sales during this shift
+    const shiftInvoices = getShiftInvoices(shift);
+    const totalSales = shiftInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+
+    shift.endTime = new Date().toISOString();
+    shift.status = 'closed';
+    shift.totalSales = totalSales;
+    shift.totalInvoices = shiftInvoices.length;
+    shift.closingAmount = (shift.openingAmount || 0) + totalSales;
+
+    saveData('shifts', shifts);
+
+    if (window.activeShiftId === shiftId) {
+        window.activeShiftId = null;
+    }
+
+    toast('تم إغلاق الوردية بنجاح');
+    addNotification(`إغلاق وردية SH-${String(shiftId).padStart(3, '0')} - مبيعات: ${fmt(totalSales)}`, 'stop-circle');
+    renderShifts();
+};
+
+window.viewShiftDetail = function(shiftId) {
+    const shifts = loadData('shifts') || [];
+    const shift = shifts.find(s => s.id === shiftId);
+    if (!shift) return;
+
+    const shiftInvoices = getShiftInvoices(shift);
+    const liveSales = shiftInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+    const displaySales = shift.status === 'closed' ? (shift.totalSales || 0) : liveSales;
+    const customers = loadData('customers') || [];
+
+    // Payment method breakdown
+    const cashTotal = shiftInvoices.filter(i => i.paymentMethod === 'cash').reduce((s, i) => s + i.total, 0);
+    const visaTotal = shiftInvoices.filter(i => i.paymentMethod === 'visa').reduce((s, i) => s + i.total, 0);
+    const transferTotal = shiftInvoices.filter(i => i.paymentMethod === 'transfer').reduce((s, i) => s + i.total, 0);
+
+    const content = `
+    <div style="direction:rtl; text-align:right; font-family:'Cairo';">
+        <h2 style="color:var(--gold-3); border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:20px;">
+            <i class="fas fa-clock"></i> تفاصيل الوردية SH-${String(shift.id).padStart(3, '0')}
+        </h2>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:15px; margin-bottom:20px;">
+            <div style="background:var(--bg-secondary); padding:12px; border-radius:8px; border:1px solid var(--border);">
+                <small style="color:var(--text-muted)">الموظف</small>
+                <div style="font-weight:700">${shift.employeeName || '-'}</div>
+            </div>
+            <div style="background:var(--bg-secondary); padding:12px; border-radius:8px; border:1px solid var(--border);">
+                <small style="color:var(--text-muted)">الحالة</small>
+                <div style="font-weight:700; color:${shift.status === 'active' ? '#2ecc71' : 'var(--text-muted)'}">
+                    ${shift.status === 'active' ? '● نشطة' : '■ مغلقة'}
+                </div>
+            </div>
+            <div style="background:var(--bg-secondary); padding:12px; border-radius:8px; border:1px solid var(--border);">
+                <small style="color:var(--text-muted)">وقت البدء</small>
+                <div style="font-weight:700">${fmtTime(shift.startTime)}</div>
+            </div>
+            <div style="background:var(--bg-secondary); padding:12px; border-radius:8px; border:1px solid var(--border);">
+                <small style="color:var(--text-muted)">وقت الانتهاء</small>
+                <div style="font-weight:700">${fmtTime(shift.endTime)}</div>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:15px; margin-bottom:25px;">
+            <div style="background:rgba(200,144,46,0.08); padding:15px; border-radius:8px; border:1px solid rgba(200,144,46,0.2); text-align:center;">
+                <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:5px;">المبلغ الافتتاحي</div>
+                <div style="font-size:1.4rem; font-weight:800; color:var(--gold-4)">${fmt(shift.openingAmount || 0)}</div>
+            </div>
+            <div style="background:rgba(46,204,113,0.08); padding:15px; border-radius:8px; border:1px solid rgba(46,204,113,0.2); text-align:center;">
+                <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:5px;">إجمالي المبيعات</div>
+                <div style="font-size:1.4rem; font-weight:800; color:#2ecc71">${fmt(displaySales)}</div>
+            </div>
+            <div style="background:rgba(168,85,247,0.08); padding:15px; border-radius:8px; border:1px solid rgba(168,85,247,0.2); text-align:center;">
+                <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:5px;">المبلغ المتوقع بالدرج</div>
+                <div style="font-size:1.4rem; font-weight:800; color:var(--purple)">${fmt((shift.openingAmount || 0) + cashTotal)}</div>
+            </div>
+        </div>
+
+        <h4 style="margin-bottom:10px; color:var(--gold-3);"><i class="fas fa-money-bill-wave"></i> تفصيل طرق الدفع</h4>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:25px;">
+            <div style="background:var(--bg-secondary); padding:10px; border-radius:8px; text-align:center; border:1px solid var(--border);">
+                <div style="font-size:0.8rem; color:var(--text-muted);">كاش</div>
+                <div style="font-weight:700;">${fmt(cashTotal)}</div>
+            </div>
+            <div style="background:var(--bg-secondary); padding:10px; border-radius:8px; text-align:center; border:1px solid var(--border);">
+                <div style="font-size:0.8rem; color:var(--text-muted);">فيزا</div>
+                <div style="font-weight:700;">${fmt(visaTotal)}</div>
+            </div>
+            <div style="background:var(--bg-secondary); padding:10px; border-radius:8px; text-align:center; border:1px solid var(--border);">
+                <div style="font-size:0.8rem; color:var(--text-muted);">تحويل</div>
+                <div style="font-weight:700;">${fmt(transferTotal)}</div>
+            </div>
+        </div>
+
+        ${shiftInvoices.length > 0 ? `
+        <h4 style="margin-bottom:10px;"><i class="fas fa-file-invoice"></i> فواتير الوردية (${shiftInvoices.length})</h4>
+        <table style="width:100%; border-collapse:collapse; font-size:0.9rem; margin-bottom:20px;">
+            <thead>
+                <tr style="background:var(--bg-secondary);">
+                    <th style="padding:8px; border:1px solid var(--border);">رقم الفاتورة</th>
+                    <th style="padding:8px; border:1px solid var(--border);">العميل</th>
+                    <th style="padding:8px; border:1px solid var(--border);">المنتجات</th>
+                    <th style="padding:8px; border:1px solid var(--border);">طريقة الدفع</th>
+                    <th style="padding:8px; border:1px solid var(--border);">الإجمالي</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${shiftInvoices.map(inv => {
+                    const cust = inv.customerId ? customers.find(c => c.id === inv.customerId) : null;
+                    const pm = {cash:'كاش', visa:'فيزا', transfer:'تحويل'};
+                    return `<tr>
+                        <td style="padding:8px; border:1px solid var(--border);">${inv.id}</td>
+                        <td style="padding:8px; border:1px solid var(--border);">${cust ? cust.name : 'عميل عابر'}</td>
+                        <td style="padding:8px; border:1px solid var(--border);">${inv.items.map(it => it.name).join(', ')}</td>
+                        <td style="padding:8px; border:1px solid var(--border); text-align:center;">${pm[inv.paymentMethod] || inv.paymentMethod}</td>
+                        <td style="padding:8px; border:1px solid var(--border); font-weight:700; color:var(--gold-4);">${fmt(inv.total)}</td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>
+        ` : '<p style="color:var(--text-muted); text-align:center; padding:20px;">لا توجد فواتير خلال هذه الوردية</p>'}
+
+        ${shift.notes ? `<div style="background:var(--bg-secondary); padding:12px; border-radius:8px; border:1px solid var(--border); margin-bottom:20px;">
+            <strong><i class="fas fa-sticky-note"></i> ملاحظات:</strong> ${shift.notes}
+        </div>` : ''}
+
+        <div style="margin-top:20px; text-align:center;">
+            <button class="btn-primary" onclick="closeModal('invoicePrintModal')">إغلاق</button>
+        </div>
+    </div>`;
+
+    document.getElementById('invoicePrintContent').innerHTML = content;
+    openModal('invoicePrintModal');
+};
+
 // ===== INIT APP =====
 function initApp() {
     renderDashboard(); renderNotifications(); checkLowStock(); applyPagePermissions();
     initProductExportImport();
+    // Restore active shift for current user
+    const shifts = loadData('shifts') || [];
+    const myActive = shifts.find(s => s.status === 'active' && currentUser && (s.employeeId === currentUser.id || s.employeeName === currentUser.name));
+    if (myActive) window.activeShiftId = myActive.id;
 }
 
 // ===== PRODUCT EXPORT/IMPORT =====
@@ -1411,7 +1917,7 @@ function importProductsFromExcel(file) {
 document.addEventListener('DOMContentLoaded', async () => {
     initParticles(); initLogin(); initNav(); initTheme(); initModals(); initNotifPanel();
     initProducts(); initPOS(); initInvoices(); initCustomers(); initInventory(); initEmployees();
-    initDiscounts(); initReturns(); initReports(); initSalesOrders(); initSettings(); initGlobalSearch();
+    initDiscounts(); initReturns(); initReports(); initSalesOrders(); initShifts(); initSettings(); initGlobalSearch();
 
     // Show loading indicator on login button
     const loginBtn = document.getElementById('loginBtn');
