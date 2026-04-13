@@ -1044,7 +1044,7 @@ function printBarcodeLabel() {
         <head>
             <title></title>
             <style>
-                @page { margin: 0; size: 40mm 30mm; }
+                @page { margin: 0; size: 40mm 30mm landscape; }
                 body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; height: 30mm; width: 40mm; overflow: hidden; background: #fff; color: #000; }
                 .label { text-align: center; width: 100%; font-family: 'Cairo', sans-serif; line-height: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
                 .label div { font-weight: bold; font-size: 12px; }
