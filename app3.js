@@ -210,7 +210,7 @@ function buildReceiptHTML(d, inv, cust) {
             <tbody>${items.map(it => `<tr style="border-bottom:1px solid #eee;">
                 <td style="padding:4px; text-align: right;">
                     <div style="font-weight:700;">${it.name}</div>
-                    ${(it.size || it.color) ? `<div style="font-size:${d.bodySize - 2}pt; color:#444;">${it.size || ''} ${it.color ? '| ' + it.color : ''}</div>` : ''}
+                    ${(it.size || it.color) ? `<div style="font-size:${d.bodySize}pt; color:#000; font-weight:800;">${it.size || ''} ${it.color ? '| ' + it.color : ''}</div>` : ''}
                 </td>
                 <td style="padding:4px;">${it.price}</td><td style="padding:4px;">${it.qty}</td><td style="padding:4px;">${it.price * it.qty}</td></tr>`).join('')}</tbody>
         </table>
